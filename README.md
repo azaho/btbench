@@ -3,10 +3,10 @@ BrainTreeBenchmark - based on the braintreebank dataset.
 
 To run the script, you need to install the following packages:
 ```
-pip install beautifulsoup4 requests torch torchvision h5py pandas scipy numpy matplotlib seaborn wandb scikit-learn transformers python-dotenv peft datasets
+pip install beautifulsoup4 requests torch torchvision h5py pandas scipy numpy matplotlib seaborn wandb scikit-learn 
 ```
 
-Then, download and extract the braintreebank dataset:
+Then, download and extract the braintreebank dataset (this step can be skipped if the dataset is already downloaded and extracted; it should be all extracted into the braintreebank/ directory):
 ```
 python braintreebank_download.py
 python braintreebank_extract.py
