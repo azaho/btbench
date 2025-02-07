@@ -19,3 +19,5 @@ python btbench_process_subject_trial_df.py
 This command will create the files in a directory called `btbench_subject_trial_df`.
 
 Then, you use the file `example_linear.ipynb` to see how to create a dataset and train a linear model.
+To specify which data you want (sentence onset, pitch, etc.), adjust the ‘eval_name’ parameter when defining a BrainTreebankSubjectTrialBenchmarkDataset
+object in code block 2. 
