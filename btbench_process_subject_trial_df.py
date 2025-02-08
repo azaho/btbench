@@ -11,13 +11,6 @@ start_col, end_col, lbl_col = 'start', 'end', 'pos'
 trig_time_col, trig_idx_col, est_idx_col, est_end_idx_col = 'movie_time', 'index', 'est_idx', 'est_end_idx'
 word_time_col, word_text_col, is_onset_col, is_offset_col = 'word_time', 'text', 'is_onset', 'is_offset'
 def obtain_aligned_words_df(sub_id, trial_id, verbose=True, save_to_dir=None):
-    # Check if aligned words dataframe already exists
-    # if save_to_dir is not None:
-    #     save_file = os.path.join(save_to_dir, f'subject{sub_id}_trial{trial_id}_words_df.csv')
-    #     if os.path.exists(save_file):
-    #         if verbose: print(f"Loading existing aligned words dataframe from {save_file}")
-    #         return pd.read_csv(save_file)
-
     # Path to neural data h5 file
     neural_data_file = os.path.join(ROOT_DIR, f'sub_{sub_id}_trial{trial_id:03}.h5')
     # Path to trigger times csv file
@@ -39,9 +32,6 @@ def obtain_aligned_words_df(sub_id, trial_id, verbose=True, save_to_dir=None):
     words_df = words_df.drop(['word_diff', 'onset_diff'], axis=1) # remove those columns because they are unnecessary and cause excessive filtering with NaN values
     words_df = words_df.dropna().reset_index(drop=True)
 
-    # Remove columns that are not needed; in the future, might add back in. This step saves space and memory.
-    words_df = words_df[['text', 'rms', 'pitch', 'start', 'end', 'is_onset']]
-    
     # Vectorized sample index estimation
     def add_estimated_sample_index_vectorized(w_df, t_df):
         last_t = t_df[trig_time_col].iloc[-1]
@@ -73,12 +63,6 @@ def obtain_aligned_words_df(sub_id, trial_id, verbose=True, save_to_dir=None):
     valid_words = (words_df[est_idx_col] >= int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE)) & \
                  (words_df[est_end_idx_col] <= int(total_samples - END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE))
     words_df = words_df[valid_words].reset_index(drop=True)
-
-    # add percentile columns
-    numerical_cols = ['rms', 'pitch']
-    for col in numerical_cols:
-        all_values = words_df[col].to_numpy() # shape: (n_words,)
-        words_df[f'{col}_percentile'] = words_df.apply(lambda row: np.mean(all_values <= row[col]), axis=1)
 
     if verbose: print(f"Kept {len(words_df)} words after removing invalid windows")
     # Save the processed words dataframe

@@ -93,6 +93,10 @@ class Subject:
                 neural_data_key = self.h5_neural_data_keys[electrode_label]
                 self.neural_data_cache[trial_id][electrode_id] = self.neural_data[trial_id][neural_data_key][:]
             h5f.close() # if cache is True, we don't need the h5f file anymore
+    def unload_neural_data(self, trial_id):
+        if trial_id in self.neural_data: del self.neural_data[trial_id]
+        if trial_id in self.neural_data_cache: del self.neural_data_cache[trial_id]
+        if trial_id in self.h5f_files: del self.h5f_files[trial_id]
 
     def _load_localization_data(self):
         """Load localization data for this electrode's subject from depth-wm.csv"""
@@ -108,15 +112,21 @@ class Subject:
                 coordinates: (n_electrodes, 3) array of coordinates (L, I, P) without any preprocessing of the coordinates
                 All coordinates are in between 50mm and 200mm for this dataset (check braintreebank_utils.ipynb for statistics)
         """
-        # Load the brain regions file for this subject
-        regions_df = self.localization_data
         # Create array of coordinates in same order as electrode_labels
         coordinates = np.zeros((self.get_n_electrodes(laplacian_rereferenced), 3))
         for i, label in enumerate(self.electrode_labels if not laplacian_rereferenced else self.laplacian_electrodes):
-            assert label in regions_df['Electrode'].values, f"Electrode {label} not found in regions file of subject {self.subject_id}"
-            row = regions_df[regions_df['Electrode'] == label].iloc[0]
+            row = self.get_electrode_metadata(label)
             coordinates[i] = [row['L'], row['I'], row['P']]
         return coordinates
+    def get_electrode_metadata(self, electrode_label):
+        """
+            Get the metadata for a given electrode.
+        """
+        return self.localization_data[self.localization_data['Electrode'] == electrode_label].iloc[0]
+    def get_all_electrode_metadata(self):
+        filtered_df = self.localization_data[self.localization_data['Electrode'].isin(self.electrode_labels)]
+        ordered_df = pd.DataFrame([filtered_df[filtered_df['Electrode'] == label].iloc[0] for label in self.electrode_labels])
+        return ordered_df.reset_index(drop=True)
     def get_n_electrodes(self, laplacian_rereferenced=False):
         return len(self.laplacian_electrodes if laplacian_rereferenced else self.electrode_labels)
 

@@ -14,7 +14,9 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
         Args:
             eval_name (str): can be "pitch" or "rms" (rms for volume) or "onset" or "speech"
         """
-        assert eval_name in ["pitch", "rms", "onset", "speech"], f"eval_name must be 'pitch' or 'rms' or 'onset' or 'speech', not {eval_name}"
+        single_float_variables = ["pitch", "rms", "mean_pixel_brightness"]
+        all_tasks = single_float_variables + ["onset", "speech"]
+        assert eval_name in all_tasks, f"eval_name must be one of {all_tasks}, not {eval_name}"
         self.subject = subject
         self.subject_id = subject.subject_id
         self.trial_id = trial_id
