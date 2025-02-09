@@ -7,7 +7,6 @@ __pycache__/
 braintreebank*/
 btbench_subject_trial_df/
 btbench_speech_selectivity/
-figures/
 
 misc_Andrii/
 quickstart.ipynb
