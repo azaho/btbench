@@ -1,3 +1,10 @@
+
+
+From Bennett: website codes are in the app/ folder
+If you want to run the website, you may have to install some things but once that works you can go to the leaderboard directory and run "npm run dev".
+
+
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
