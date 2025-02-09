@@ -5,55 +5,87 @@ from braintreebank_subject import Subject
 from btbench_datasets import BrainTreebankSubjectTrialBenchmarkDataset
 import numpy as np
 
+_all_subject_trials = [
+    (1, 0), (1, 1), (1, 2), 
+    (2, 0), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6),
+    (3, 0), (3, 1), (3, 2), 
+    (4, 0), (4, 1), (4, 2), 
+    (5, 0), 
+    (6, 0), (6, 1), (6, 4),
+    (7, 0), (7, 1), 
+    (8, 0), 
+    (9, 0), 
+    (10, 0), (10, 1)
+]
 
-def generate_splits_DS_DT(subject, trial_id, eval_name, k_folds=5, dtype=torch.float32):
 
-    _all_subject_trials = [
-        (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6),
-        (3, 0), (3, 1), (3, 2), (4, 0), (4, 1), (4, 2), (5, 0), (6, 0), (6, 1), (6, 4),
-        (7, 0), (7, 1), (8, 0), (9, 0), (10, 0), (10, 1)
-    ]
+def generate_splits_DS_DT(all_subjects, test_subject_id, test_trial_id, eval_name, dtype=torch.float32):
+    """Generate train/test splits for Different Subject Different Trial (DS-DT) evaluation.
+    
+    This function creates train/test splits by using one subject and trial as the test set,
+    and using all other subjects and trials (except the test trial) as the training set.
+    This evaluates generalization across both subjects and movie content.
 
-    movie_subject_mapping = {}
+    Args:
+        all_subjects (dict): Dictionary mapping subject IDs to Subject objects
+        test_subject_id (int): ID of the subject to use as test set
+        test_trial_id (int): ID of the trial/movie to use as test set
+        eval_name (str): Name of the evaluation metric to use (e.g. "rms")
+        dtype (torch.dtype, optional): Data type for tensors. Defaults to torch.float32.
+
+    Returns:
+        tuple: A tuple containing:
+            - train_dataset (ConcatDataset): Combined dataset of all training subjects and trials
+            - test_dataset (Dataset): Dataset for the test subject and trial
+    """
+    test_dataset = BrainTreebankSubjectTrialBenchmarkDataset(all_subjects[test_subject_id], test_trial_id, dtype=dtype, eval_name=eval_name)
+    train_subject_trials = [(subject_id, trial_id) for subject_id, trial_id in _all_subject_trials if subject_id != test_subject_id and trial_id != test_trial_id]
+
+    train_datasets = []
+    for train_subject_id, train_trial_id in train_subject_trials:
+        train_dataset = BrainTreebankSubjectTrialBenchmarkDataset(all_subjects[train_subject_id], train_trial_id, dtype=dtype, eval_name=eval_name)
+        train_datasets.append(train_dataset)
+
+    train_dataset = ConcatDataset(train_datasets)
+    return train_dataset, test_dataset
+
+
+def generate_splits_DS_ST(all_subjects, test_subject_id, test_trial_id, eval_name, dtype=torch.float32):
+    """Generate train/test splits for Different Subject Same Trial (DS-ST) evaluation.
+    
+    This function creates train/test splits by using one subject and trial as the test set,
+    and using the same trial from all other subjects as the training set. This evaluates
+    generalization across subjects while controlling for the trial/movie content.
+
+    Args:
+        all_subjects (dict): Dictionary mapping subject IDs to Subject objects
+        test_subject_id (int): ID of the subject to use as test set
+        test_trial_id (int): ID of the trial/movie to use as test set
+        eval_name (str): Name of the evaluation metric to use (e.g. "rms")
+        dtype (torch.dtype, optional): Data type for tensors. Defaults to torch.float32.
+
+    Returns:
+        tuple: A tuple containing:
+            - train_dataset (ConcatDataset): Combined dataset of all training subjects for the test trial
+            - test_dataset (Dataset): Dataset for the test subject and trial
+    """
+    trial_subject_mapping = {}
     for subject_id, trial_id in _all_subject_trials:
-        if trial_id not in movie_subject_mapping:
-            movie_subject_mapping[trial_id] = []
-        movie_subject_mapping[trial_id].append(subject_id)
+        if trial_id not in trial_subject_mapping:
+            trial_subject_mapping[trial_id] = []
+        trial_subject_mapping[trial_id].append(subject_id)
+    other_subject_id_list = [subject_id for subject_id in trial_subject_mapping[test_trial_id] if subject_id != test_subject_id]
+    if len(other_subject_id_list) == 0: raise ValueError(f"Trial {test_subject_id} has no other subjects to train on.")
 
-    # ✅ Step 2: Select ONE specific movie for LOSO cross-validation
-    selected_movie = 0  # Change this to pick a different movie
-    subject_list = movie_subject_mapping[selected_movie]
-
-    print(f"\n🎬 Selected Movie {selected_movie} - Subjects: {subject_list}")
-
-    # ✅ Step 3: Run Leave-One-Subject-Out for this movie
-    for test_subject in subject_list:
-        print(f"\n🚀 Training on all subjects except {test_subject}, testing on Subject {test_subject}")
-
-        # ✅ Step 4: Load datasets
-        train_datasets = []
-        test_dataset = None
-
-        for subject_id in subject_list:
-            subject = Subject(subject_id, cache=True)
-            dataset = BrainTreebankSubjectTrialBenchmarkDataset(subject, selected_movie, dtype=torch.float32, eval_name="rms")
-
-            if subject_id == test_subject:
-                test_dataset = dataset  # Leave one subject out
-            else:
-                train_datasets.append(dataset)  # Use others for training
-
-        # ✅ Step 5: Combine training datasets
-        train_dataset = ConcatDataset(train_datasets)
-        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-        test_loader = DataLoader(test_dataset, batch_size=32)
-
-        print(f"✅ Train Subjects: {len(train_datasets)} - Train Samples: {len(train_dataset)}")
-        print(f"✅ Test Subject: {test_subject} - Test Samples: {len(test_dataset)}")
+    test_dataset = BrainTreebankSubjectTrialBenchmarkDataset(all_subjects[test_subject_id], test_trial_id, dtype=dtype, eval_name=eval_name)
+    train_datasets = []
+    for other_subject_id in other_subject_id_list:
+        train_datasets.append(BrainTreebankSubjectTrialBenchmarkDataset(all_subjects[other_subject_id], test_trial_id, dtype=dtype, eval_name=eval_name))
+    train_dataset = ConcatDataset(train_datasets)
+    return train_dataset, test_dataset
 
 
-
-def generate_splits_SS_DT(subject, trial_id, eval_name, k_folds=5, dtype=torch.float32):
+def generate_splits_SS_DT(test_subject, test_trial_id, eval_name, dtype=torch.float32):
     """Generate train/test splits for Single Subject Different Trials (SS-DT) evaluation.
     
     This function creates train/test splits by using one trial as the test set and all other
@@ -61,8 +93,8 @@ def generate_splits_SS_DT(subject, trial_id, eval_name, k_folds=5, dtype=torch.f
     k-fold cross validation since trials are already naturally separated.
 
     Args:
-        subject (Subject): Subject object containing brain recording data
-        trial_id (int): ID of the trial/movie to use as test set
+        test_subject (Subject): Subject object containing brain recording data
+        test_trial_id (int): ID of the trial/movie to use as test set
         eval_name (str): Name of the evaluation metric to use (e.g. "rms")
         k_folds (int, optional): Not used in this function but kept for API consistency. Defaults to 5.
         dtype (torch.dtype, optional): Data type for tensors. Defaults to torch.float32.
@@ -85,25 +117,24 @@ def generate_splits_SS_DT(subject, trial_id, eval_name, k_folds=5, dtype=torch.f
         9: [0],
         10: [0, 1],
     }
-
     # Choose subject
-    subject_id = subject.subject_id  # Change this to test different subjects
-    if subject_id not in _subject_trials: raise ValueError(f"Subject {subject_id} not found in dataset.")
-    for test_trial in _subject_trials[subject_id]:
-        train_trials = [t for t in _subject_trials[subject_id] if t != test_trial]
-        if len(train_trials) == 0: raise ValueError(f"Subject {subject_id} has no training trials.")
-        
-        test_dataset = BrainTreebankSubjectTrialBenchmarkDataset(subject, test_trial, dtype=dtype, eval_name=eval_name)
-        # Load training datasets dynamically
-        train_datasets = []
-        for train_trial in train_trials:
-            train_dataset = BrainTreebankSubjectTrialBenchmarkDataset(subject, train_trial, dtype=dtype, eval_name=eval_name)
-            train_datasets.append(train_dataset)
-        train_dataset = ConcatDataset(train_datasets)
+    test_subject_id = test_subject.subject_id  # Change this to test different subjects
+    if test_subject_id not in _subject_trials: raise ValueError(f"Subject {test_subject_id} not found in dataset.")
+
+    train_trials = [t for t in _subject_trials[test_subject_id] if t != test_trial_id]
+    if len(train_trials) == 0: raise ValueError(f"Subject {test_subject_id} has no training trials.")
+
+    test_dataset = BrainTreebankSubjectTrialBenchmarkDataset(test_subject, test_trial_id, dtype=dtype, eval_name=eval_name)
+    # Load training datasets dynamically
+    train_datasets = []
+    for train_trial_id in train_trials:
+        train_dataset = BrainTreebankSubjectTrialBenchmarkDataset(test_subject, train_trial_id, dtype=dtype, eval_name=eval_name)
+        train_datasets.append(train_dataset)
+    train_dataset = ConcatDataset(train_datasets)
     return train_dataset, test_dataset
 
 
-def generate_splits_SS_ST(subject, trial_id, eval_name, k_folds=5, dtype=torch.float32, gap_length=300):
+def generate_splits_SS_ST(test_subject, test_trial_id, eval_name, add_other_trials=False, k_folds=5, dtype=torch.float32, gap_length=60):
     """Generate train/test splits for Single Subject Single Trial (SS-ST) evaluation.
     
     This function performs k-fold cross validation on data from a single subject and trial,
@@ -111,12 +142,12 @@ def generate_splits_SS_ST(subject, trial_id, eval_name, k_folds=5, dtype=torch.f
     temporal correlation. It also maintains a test/train ratio between 0.18 and 0.22.
 
     Args:
-        subject (Subject): Subject object containing brain recording data
-        trial_id (int): ID of the trial/movie to use
+        test_subject (Subject): Subject object containing brain recording data
+        test_trial_id (int): ID of the trial/movie to use
         eval_name (str): Name of the evaluation metric to use (e.g. "rms")
+        add_other_trials (bool, optional): Whether to add other trials from the same subject to the training set. Defaults to False.
         k_folds (int, optional): Number of folds for cross validation. Defaults to 5.
         dtype (torch.dtype, optional): Data type for tensors. Defaults to torch.float32.
-        verbose (bool, optional): Whether to print detailed split information. Defaults to False.
 
     Returns:
         tuple: A tuple containing:
@@ -126,8 +157,12 @@ def generate_splits_SS_ST(subject, trial_id, eval_name, k_folds=5, dtype=torch.f
     train_datasets = []
     test_datasets = []
 
-    dataset = BrainTreebankSubjectTrialBenchmarkDataset(subject, trial_id, dtype=dtype, eval_name=eval_name)
+    dataset = BrainTreebankSubjectTrialBenchmarkDataset(test_subject, test_trial_id, dtype=dtype, eval_name=eval_name)
     kf = KFold(n_splits=k_folds, shuffle=False)  # shuffle=False is important to avoid correlated train/test splits!
+
+    if add_other_trials:
+        other_trials = [_trial_id for _subject_id, _trial_id in _all_subject_trials if _subject_id == test_subject.subject_id and _trial_id != test_trial_id]
+        other_trials_dataset = ConcatDataset([BrainTreebankSubjectTrialBenchmarkDataset(test_subject, t, dtype=dtype, eval_name=eval_name) for t in other_trials])
 
     # Get word start times & texts from dataset
     word_start_times = dataset.all_words_df["start"].to_numpy()
@@ -150,14 +185,36 @@ def generate_splits_SS_ST(subject, trial_id, eval_name, k_folds=5, dtype=torch.f
             or word_start_times[i] >= test_end_time + gap_length    # After test set with gap
         ])
         
-        train_datasets.append(Subset(dataset, train_idx))
+        train_dataset = Subset(dataset, train_idx)
+        if add_other_trials:
+            train_dataset = ConcatDataset([other_trials_dataset, train_dataset])
+        train_datasets.append(train_dataset)
         test_datasets.append(Subset(dataset, test_idx))
 
     return train_datasets, test_datasets
 
 
 if __name__ == "__main__":
-    subject = Subject(3, cache=False)
-    train_datasets, test_datasets = generate_splits_SS_ST(subject, 0, "rms", verbose=False)
+    eval_name = "rms"
+    test_subject_id, test_trial_id = 3, 0
+    all_subjects = {subject_id: Subject(subject_id, cache=False) for subject_id in range(1, 11)}
+
+    print("= LOADING DATASETS = DS-DT (Different Subject Different Trial)")
+    train_datasets, test_datasets = generate_splits_DS_DT(all_subjects, test_subject_id, test_trial_id, eval_name)
+    print(train_datasets)
+    print(test_datasets)
+
+    print("= LOADING DATASETS = DS-ST (Different Subject Same Trial)")
+    train_datasets, test_datasets = generate_splits_DS_ST(all_subjects, test_subject_id, test_trial_id, eval_name)
+    print(train_datasets)
+    print(test_datasets)
+
+    print("= LOADING DATASETS = SS-DT (Single Subject Different Trial)")
+    train_datasets, test_datasets = generate_splits_SS_DT(all_subjects[test_subject_id], test_trial_id, eval_name)
+    print(train_datasets)
+    print(test_datasets)
+
+    print("= LOADING DATASETS = SS-ST (Single Subject Same Trial)")
+    train_datasets, test_datasets = generate_splits_SS_ST(all_subjects[test_subject_id], test_trial_id, eval_name)
     print(train_datasets)
     print(test_datasets)

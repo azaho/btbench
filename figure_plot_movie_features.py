@@ -7,6 +7,7 @@ import numpy as np
 import seaborn as sns
 from scipy import signal, stats
 from matplotlib.patches import Patch
+from btbench_config import ROOT_DIR
 
 def ensure_dir(directory):
     """Create directory if it doesn't exist"""
@@ -301,14 +302,13 @@ def plot_all_movies_volume(movies_dir='movie_features'):
     # Adjust layout
     plt.subplots_adjust(top=0.95, bottom=0.08)
     
-    plt.savefig('movie_volumes_comparison.pdf', dpi=300, bbox_inches='tight')
-    plt.savefig('movie_volumes_comparison.png', dpi=300, bbox_inches='tight')
+    plt.savefig('figures/movie_volumes_comparison.pdf', dpi=300, bbox_inches='tight')
     plt.show()
 
 if __name__ == "__main__":
     # Get the directory where this script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    root_dir = os.path.join(script_dir, "braintreebank_data")
+    root_dir = ROOT_DIR
     metadata_dir = os.path.join(root_dir, "subject_metadata")
     
     # Find all metadata files
