@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 from scipy import signal, stats
+from matplotlib.patches import Patch
 
 def ensure_dir(directory):
     """Create directory if it doesn't exist"""
@@ -179,7 +180,7 @@ def plot_movie_features(movie_id, transcript_file, title):
     plt.savefig(os.path.join(output_dir, '2_loud_quiet_sections.png'))
     plt.close()
     
-    # Update analysis summary
+    # Update analysis summary with times and RMS values
     summary = {
         'title': title,
         'duration_seconds': features_df['end'].max(),
@@ -188,11 +189,121 @@ def plot_movie_features(movie_id, transcript_file, title):
         'quiet_threshold': float(quiet_threshold),
         'loud_threshold': float(loud_threshold),
         'loud_sections_percentage': float(loud_mask.mean() * 100),
-        'quiet_sections_percentage': float(quiet_mask.mean() * 100)
+        'quiet_sections_percentage': float(quiet_mask.mean() * 100),
+        'times': features_df['start'].tolist(),  # Add time points
+        'rms': features_df['rms'].tolist()       # Add RMS values
     }
     
     with open(os.path.join(output_dir, 'analysis_summary.json'), 'w') as f:
         json.dump(summary, f, indent=4)
+
+def plot_all_movies_volume(movies_dir='movie_features'):
+    """Create a publication figure showing loud/quiet sections for all movies"""
+    # Set up the figure with a smaller size
+    fig = plt.figure(figsize=(12, 14))
+    plt.style.use('seaborn-paper')
+    plt.rcParams['font.family'] = 'Arial'
+    plt.rcParams['font.size'] = 12
+    
+    # Get all movie directories
+    movie_dirs = [d for d in os.listdir(movies_dir) 
+                 if os.path.isdir(os.path.join(movies_dir, d))]
+    movie_dirs.sort()
+    n_movies = len(movie_dirs)
+    n_rows = (n_movies + 2) // 3
+    
+    # Create GridSpec with adjusted spacing
+    gs = plt.GridSpec(n_rows * 3, 3,  # Use 3x the rows to add space between movie pairs
+                     height_ratios=[0.4, 0.1, 0.5] * n_rows,  # [volume plot, color plot, spacing] for each movie
+                     hspace=0.0,   # No space between paired plots
+                     wspace=0.3)   # Space between columns
+    
+    for idx, movie in enumerate(movie_dirs):
+        # Calculate row and column position
+        base_row = (idx // 3) * 3  # Multiply by 3 because each movie takes 3 rows
+        col = idx % 3
+        
+        # Load movie data
+        with open(os.path.join(movies_dir, movie, 'analysis_summary.json'), 'r') as f:
+            data = json.load(f)
+        
+        # Create two subplots for each movie
+        ax1 = plt.subplot(gs[base_row, col])     # Volume line plot
+        ax2 = plt.subplot(gs[base_row+1, col])   # Loud/quiet sections
+        
+        # Get data
+        times = np.array(data['times'])
+        rms = np.array(data['rms'])
+        
+        # Top plot: Volume line
+        ax1.plot(times/60, rms, color='black', alpha=0.7, linewidth=0.5)
+        movie_title = movie.replace('-', ' ').title()
+        movie_duration = f"{data['duration_seconds']/60:.0f}"
+        
+        # Place title at the top of the volume plot
+        ax1.set_title(f"{movie_title} - {movie_duration} min", 
+                     fontsize=12,
+                     pad=5)
+        
+        ax1.set_ylim(0, rms.max() * 1.1)
+        ax1.set_xlim(0, data['duration_seconds']/60)
+        
+        # Bottom plot: Loud/quiet sections
+        loud_mask = rms >= data['loud_threshold']
+        quiet_mask = rms <= data['quiet_threshold']
+        
+        ax2.fill_between(times/60, 0, 1, 
+                        where=loud_mask,
+                        color='red', alpha=0.3)
+        ax2.fill_between(times/60, 0, 1, 
+                        where=quiet_mask,
+                        color='blue', alpha=0.3)
+        
+        # Customize appearance
+        ax2.set_ylim(0, 1)
+        ax2.set_xlim(0, data['duration_seconds']/60)
+        
+        # Remove all axis elements from volume plot
+        ax1.set_xticks([])
+        ax1.set_yticks([])
+        ax1.grid(False)
+        
+        # Only show x-axis on bottom plot for last row
+        if idx >= len(movie_dirs)-3:
+            ax2.set_xlabel('Time (minutes)', fontsize=12)
+        else:
+            ax2.set_xticks([])
+        
+        # Remove y-axis ticks
+        ax2.set_yticks([])
+        
+        # Remove spines from both plots
+        for spine in ax1.spines.values():
+            spine.set_visible(False)
+        for spine in ax2.spines.values():
+            spine.set_visible(False)
+            
+        # Only add grid to bottom plot
+        ax2.grid(True, alpha=0.2)
+    
+    # Move legend to bottom
+    legend_elements = [
+        plt.Line2D([0], [0], color='black', alpha=0.7, linewidth=0.5, label='Volume'),
+        Patch(facecolor='red', alpha=0.3, label='Loud'),
+        Patch(facecolor='blue', alpha=0.3, label='Quiet')
+    ]
+    fig.legend(handles=legend_elements, 
+              loc='lower center',
+              bbox_to_anchor=(0.5, 0.02),
+              ncol=3,
+              fontsize=12)
+    
+    # Adjust layout
+    plt.subplots_adjust(top=0.95, bottom=0.08)
+    
+    plt.savefig('movie_volumes_comparison.pdf', dpi=300, bbox_inches='tight')
+    plt.savefig('movie_volumes_comparison.png', dpi=300, bbox_inches='tight')
+    plt.show()
 
 if __name__ == "__main__":
     # Get the directory where this script is located
@@ -247,4 +358,6 @@ if __name__ == "__main__":
         except FileNotFoundError as e:
             print(f"Error: Could not find file - {e}")
         except Exception as e:
-            print(f"Error processing {movie['expected_title']}: {e}") 
+            print(f"Error processing {movie['expected_title']}: {e}")
+
+    plot_all_movies_volume() 
