@@ -6,6 +6,7 @@ import pandas as pd
 from scipy import signal, stats
 import numpy as np
 from btbench_config import *
+import gc
 
 class Subject:
     """ 
@@ -30,6 +31,7 @@ class Subject:
                 del self.h5_neural_data_keys[e]
         self.electrode_ids = {e:i for i, e in enumerate(self.electrode_labels)}
         self.laplacian_electrodes, self.electrode_neighbors = self._get_all_laplacian_electrodes()
+        self.electrode_data_length = {}
 
     def _clean_electrode_label(self, electrode_label):
         return electrode_label.replace('*', '').replace('#', '')
@@ -86,13 +88,17 @@ class Subject:
         self.h5f_files[trial_id] = h5f
         self.neural_data[trial_id] = h5f['data']
 
+        neural_data_key = self.h5_neural_data_keys[self.electrode_labels[0]]
+        self.electrode_data_length[trial_id] = self.neural_data[trial_id][neural_data_key].shape[0]
+
         if self.cache:
-            neural_data_key = self.h5_neural_data_keys[self.electrode_labels[0]]
-            self.neural_data_cache[trial_id] = np.zeros((len(self.electrode_labels), self.neural_data[trial_id][neural_data_key].shape[0]))
+            self.neural_data_cache[trial_id] = np.zeros((len(self.electrode_labels), self.electrode_data_length[trial_id]))
             for electrode_label, electrode_id in self.electrode_ids.items():
                 neural_data_key = self.h5_neural_data_keys[electrode_label]
                 self.neural_data_cache[trial_id][electrode_id] = self.neural_data[trial_id][neural_data_key][:]
-            h5f.close() # if cache is True, we don't need the h5f file anymore
+            self.neural_data[trial_id] = {}
+            h5f.close()
+            gc.collect()
     def unload_neural_data(self, trial_id):
         if trial_id in self.neural_data: del self.neural_data[trial_id]
         if trial_id in self.neural_data_cache: del self.neural_data_cache[trial_id]
@@ -138,7 +144,7 @@ class Subject:
         neural_data_key = self.h5_neural_data_keys[electrode_label]
         if trial_id not in self.neural_data: self.load_neural_data(trial_id)
         if window_from is None: window_from = 0
-        if window_to is None: window_to = self.neural_data[trial_id][neural_data_key].shape[0]
+        if window_to is None: window_to = self.electrode_data_length[trial_id]
         if self.cache:
             electrode_id = self.electrode_ids[electrode_label]
             return self.neural_data_cache[trial_id][electrode_id][window_from:window_to]
@@ -147,7 +153,7 @@ class Subject:
         if window_from is None: window_from = 0
         if window_to is None: 
             neural_data_key = self.h5_neural_data_keys[self.electrode_labels[0]]
-            window_to = self.neural_data[trial_id][neural_data_key].shape[0]
+            window_to = self.electrode_data_length[trial_id] 
         if self.cache: return self.neural_data_cache[trial_id][:, window_from:window_to]
 
         all_electrode_data = np.zeros((len(self.electrode_labels), window_to-window_from))

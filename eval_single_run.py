@@ -5,13 +5,39 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report
 from btbench_train_test_splits import generate_splits_SS_ST
 from braintreebank_subject import Subject
+from scipy import signal
 from sklearn.metrics import roc_auc_score
 import os
 import json
 from datetime import datetime
+import gc
+import psutil
 
+def compute_spectrogram(data, fs=2048, max_freq=500):
+    """Compute spectrogram for a single trial of data.
+    
+    Args:
+        data (numpy.ndarray): Input voltage data of shape (n_channels, n_samples) or (batch_size, n_channels, n_samples)
+        fs (int): Sampling frequency in Hz
+    
+    Returns:
+        numpy.ndarray: Spectrogram representation
+    """
+    # For 1 second of data at 2048Hz, we'll use larger window
+    nperseg = 256  # 125ms window
+    noverlap = 0  # 0% overlap
+    
+    f, t, Sxx = signal.spectrogram(
+        data, 
+        fs=fs,
+        nperseg=nperseg,
+        noverlap=noverlap,
+        window='boxcar'
+    )
+    
+    return Sxx[:, (f<max_freq) & (f>0)]
 
-def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5):
+def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectrogram=False):
     """Run linear classification for a given subject, trial, and eval_name.
     
     Args:
@@ -20,18 +46,29 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5):
         eval_name (str): eval_name name (e.g., "rms" for volume classification)
         k_folds (int): Number of cross-validation folds
     """
+    suffix = '_spectrogram' if spectrogram else '_voltage'
+    # Check if results file already exists
+    output_dir = 'eval_results'
+    # Check if any matching results files exist using glob
+    import glob
+    results_pattern = os.path.join(output_dir, f'linear{suffix}_*_subject{subject_id}_trial{trial_id}_{eval_name}.json')
+    matching_files = glob.glob(results_pattern)
+    if matching_files:
+        print(f"Results file already exists for this configuration. Skipping...")
+        return
+    process = psutil.Process() # for tracking ram usage
+
     # Create output directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = 'eval_results'
     os.makedirs(output_dir, exist_ok=True)
     
     # Load subject data
-    print(f"Loading subject {subject_id}...")
+    print(f"Loading subject {subject_id}... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
     subject = Subject(subject_id, cache=True)
     subject.load_neural_data(trial_id)
     
     # Generate train/test splits
-    print(f"Generating train/test splits for subject {subject_id}...")
+    print(f"Generating train/test splits for subject {subject_id}... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
     train_datasets, test_datasets = generate_splits_SS_ST(
         test_subject=subject,
         test_trial_id=trial_id,
@@ -50,34 +87,54 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5):
         print(f"Test data shape: {test_data[0][0].shape}")
         print(f"Length of train data: {len(train_data)}")
         print(f"Length of test data: {len(test_data)}")
+
+        sample_time_from, sample_time_to = 1024, 3072 # get the first second of neural data after word onset
         
         # Convert dataset to numpy arrays
         # Convert to numpy arrays in one pass
-        print("Processing X_train...")
-        X_train = np.array([sample[0].numpy() for sample in train_data])
-        print("Processing y_train...")
-        y_train = np.array([sample[1] for sample in train_data])
-        print("Processing X_test...")
-        X_test = np.array([sample[0].numpy() for sample in test_data], dtype=int)
-        print("Processing y_test...")
-        y_test = np.array([sample[1] for sample in test_data], dtype=int)
+        print(f"Processing train data... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
+        X_train = []
+        y_train = []
+        for i in range(len(train_data)):
+            features, label = train_data[i]
+            features = features.numpy()[:, sample_time_from:sample_time_to]
+            if spectrogram: features = compute_spectrogram(features)
+            X_train.append(features.flatten())
+            y_train.append(label)
+        X_train = np.array(X_train)
+        y_train = np.array(y_train, dtype=int)
+        print("Train dataset loaded")
 
-        # Flatten the electrode data if needed
-        if len(X_train.shape) > 2:
-            X_train = X_train.reshape(X_train.shape[0], -1)
-            X_test = X_test.reshape(X_test.shape[0], -1)
+        print(f"Processing test data... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
+        X_test = []
+        y_test = []
+        for i in range(len(test_data)):
+            features, label = test_data[i]
+            features = features.numpy()[:, sample_time_from:sample_time_to]
+            if spectrogram: features = compute_spectrogram(features)
+            X_test.append(features.flatten())
+            y_test.append(label)
+        X_test = np.array(X_test)
+        y_test = np.array(y_test, dtype=int)
+        print("Test dataset loaded")
         
-        # Train logistic regression
-        print("Training logistic regression...")
-        clf = LogisticRegression(max_iter=1000, random_state=42, multi_class='multinomial')
+        # Train logistic regression with optimized parameters
+        print(f"Training logistic regression... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
+        clf = LogisticRegression(
+            max_iter=1000,
+            random_state=42,
+            solver='lbfgs',  # Faster solver for large datasets
+            n_jobs=4,     # Use 4
+            tol=1e-3,      # Slightly less strict convergence criterion
+        )
         clf.fit(X_train, y_train)
         
         # Make predictions
-        print("Making predictions...")
+        print(f"Making predictions... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
         y_pred = clf.predict(X_test)
         
         # Calculate accuracy and AUROC
-        print("Calculating accuracy and AUROC...")
+        print(f"Calculating accuracy and AUROC... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
         accuracy = accuracy_score(y_test, y_pred)
         
         # Calculate AUROC for multi-class using one-vs-rest approach
@@ -110,9 +167,16 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5):
             fold_results[-1]['auroc_per_class'] = {f'class_{i}': float(auc) for i, auc in enumerate(auroc_per_class)}
         
         # Print fold results
-        print(f"Fold {fold + 1} Accuracy: {accuracy:.4f}")
+        print(f"Fold {fold + 1} Accuracy: {accuracy:.4f} (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
         print("\nClassification Report:")
         print(classification_report(y_test, y_pred))
+
+        # clean up memory
+        del X_train, y_train, X_test, y_test, y_pred
+        del clf, accuracy, auroc
+        if n_classes > 2:
+            del auroc_per_class, y_score, y_binary
+        gc.collect()  # Force garbage collection
     
     # Calculate and print overall results
     mean_accuracy = np.mean(fold_accuracies)
@@ -133,7 +197,7 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5):
         'n_classes': int(n_classes)
     }
     
-    results_file = os.path.join(output_dir, f'linear_voltage_{timestamp}_subject{subject_id}_trial{trial_id}_{eval_name}.json')
+    results_file = os.path.join(output_dir, f'linear{suffix}_{timestamp}_subject{subject_id}_trial{trial_id}_{eval_name}.json')
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=4)
     
@@ -146,6 +210,7 @@ if __name__ == "__main__":
     parser.add_argument("--trial", type=int, required=True, help="Trial ID")
     parser.add_argument("--eval_name", type=str, required=True, help="eval_name name (e.g., 'rms')")
     parser.add_argument("--folds", type=int, default=5, help="Number of cross-validation folds")
+    parser.add_argument("--spectrogram", type=int, default=0, help="Whether to compute spectrogram")
     
     args = parser.parse_args()
     
@@ -153,5 +218,6 @@ if __name__ == "__main__":
         subject_id=args.subject,
         trial_id=args.trial,
         eval_name=args.eval_name,
-        k_folds=args.folds
+        k_folds=args.folds,
+        spectrogram=(args.spectrogram==1)
     )

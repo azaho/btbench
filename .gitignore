@@ -12,5 +12,7 @@ eval_results/
 misc_Andrii/
 quickstart.ipynb
 r/
+r_old/
 _temp.ipynb
 figures/.*
+eval_results_old/*

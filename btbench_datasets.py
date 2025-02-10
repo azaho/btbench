@@ -127,6 +127,18 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
                 self.class_labels[self.all_words_df['speaker'] == speaker] = i
             self.__getitem__ = self._classification__getitem__
             rebalance_classes = True
+        elif eval_name == "word_gap":
+            # Get indices for words in top and bottom quartiles, ignoring -1 values
+            all_labels = self.all_words_df[self.eval_name_remapped].to_numpy()
+            valid_mask = all_labels != -1
+            valid_labels = all_labels[valid_mask]
+            label_percentiles = np.array([np.mean(valid_labels < x) for x in all_labels[valid_mask]])
+            valid_indices = np.where(valid_mask)[0]
+            extreme_mask = (label_percentiles > 0.75) | (label_percentiles < 0.25)
+            self.extreme_indices = valid_indices[extreme_mask]
+            self.extreme_labels = torch.from_numpy((label_percentiles[extreme_mask] > 0.75).astype(int))
+            self.n_samples = len(self.extreme_indices)
+            self.__getitem__ = self._simple_float_variable__getitem__
 
         if rebalance_classes:
             # Get counts for each class

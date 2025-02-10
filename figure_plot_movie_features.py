@@ -8,6 +8,11 @@ import seaborn as sns
 from scipy import signal, stats
 from matplotlib.patches import Patch
 from btbench_config import ROOT_DIR
+import matplotlib.font_manager as fm
+font_path = 'font_arial.ttf'
+fm.fontManager.addfont(font_path)
+plt.rcParams['font.family'] = 'Arial'
+plt.rcParams.update({'font.size': 12})
 
 def ensure_dir(directory):
     """Create directory if it doesn't exist"""
@@ -243,7 +248,6 @@ def plot_all_movies_volume(movies_dir='movie_features'):
         
         # Place title at the top of the volume plot
         ax1.set_title(f"{movie_title} - {movie_duration} min", 
-                     fontsize=12,
                      pad=5)
         
         ax1.set_ylim(0, rms.max() * 1.1)
@@ -271,7 +275,7 @@ def plot_all_movies_volume(movies_dir='movie_features'):
         
         # Only show x-axis on bottom plot for last row
         if idx >= len(movie_dirs)-3:
-            ax2.set_xlabel('Time (minutes)', fontsize=12)
+            ax2.set_xlabel('Time (minutes)')
         else:
             ax2.set_xticks([])
         
@@ -296,8 +300,7 @@ def plot_all_movies_volume(movies_dir='movie_features'):
     fig.legend(handles=legend_elements, 
               loc='lower center',
               bbox_to_anchor=(0.5, 0.02),
-              ncol=3,
-              fontsize=12)
+              ncol=3)
     
     # Adjust layout
     plt.subplots_adjust(top=0.95, bottom=0.08)
