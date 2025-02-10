@@ -134,26 +134,31 @@ def generate_splits_SS_DT(test_subject, test_trial_id, eval_name, dtype=torch.fl
     return train_dataset, test_dataset
 
 
-def generate_splits_SS_ST(test_subject, test_trial_id, eval_name, add_other_trials=False, k_folds=5, dtype=torch.float32, gap_length=60):
+def generate_splits_SS_ST(test_subject, test_trial_id, eval_name, add_other_trials=False, k_folds=5, dtype=torch.float32, gap_length=None):
     """Generate train/test splits for Single Subject Single Trial (SS-ST) evaluation.
     
-    This function performs k-fold cross validation on data from a single subject and trial,
-    ensuring temporal gaps of at least 300 seconds between train and test sets to avoid
-    temporal correlation. It also maintains a test/train ratio between 0.18 and 0.22.
+    This function performs k-fold cross validation on data from a single subject and trial.
+    If gap_length is specified and not None, it ensures temporal gaps between train and test sets to avoid
+    temporal correlation in the data. For example, if gap_length=300, there will be at least
+    300 seconds between any training and test samples. If gap_length is None, no temporal gap
+    is enforced between train and test sets.
 
     Args:
         test_subject (Subject): Subject object containing brain recording data
         test_trial_id (int): ID of the trial/movie to use
-        eval_name (str): Name of the evaluation metric to use (e.g. "rms")
+        eval_name (str): Name of the evaluation metric to use (e.g. "rms", "word_gap", "pitch", "delta_volume")
         add_other_trials (bool, optional): Whether to add other trials from the same subject to the training set. Defaults to False.
         k_folds (int, optional): Number of folds for cross validation. Defaults to 5.
         dtype (torch.dtype, optional): Data type for tensors. Defaults to torch.float32.
+        gap_length (int, optional): Minimum temporal gap in seconds between train and test sets. If None, no gap is enforced. Defaults to None.
 
     Returns:
         tuple: A tuple containing:
             - train_datasets (list): List of k training dataset splits
             - test_datasets (list): List of k test dataset splits, which correspond to the train datasets in the array above
     """
+    assert gap_length is None, "gap_length is not fully implemented yet (doesn't work for some tasks, for example speech, because there is no direct correspondence between words and samples)"
+
     train_datasets = []
     test_datasets = []
 
@@ -172,18 +177,19 @@ def generate_splits_SS_ST(test_subject, test_trial_id, eval_name, add_other_tria
         if len(test_idx) == 0 or len(train_idx) == 0:
             continue
 
-        # Get initial test boundaries
-        test_earliest_idx = test_idx[0]
-        test_latest_idx = test_idx[-1]
-        test_start_time = word_start_times[test_earliest_idx]
-        test_end_time = word_start_times[test_latest_idx]
+        if gap_length is not None:
+            # Get initial test boundaries
+            test_earliest_idx = test_idx[0]
+            test_latest_idx = test_idx[-1]
+            test_start_time = word_start_times[test_earliest_idx]
+            test_end_time = word_start_times[test_latest_idx]
 
-        # Create gaps by filtering train indices
-        train_idx = np.array([
-            i for i in train_idx 
-            if word_start_times[i] <= test_start_time - gap_length  # Before test set with gap
-            or word_start_times[i] >= test_end_time + gap_length    # After test set with gap
-        ])
+            # Create gaps by filtering train indices
+            train_idx = np.array([
+                i for i in train_idx 
+                if word_start_times[i] <= test_start_time - gap_length  # Before test set with gap
+                or word_start_times[i] >= test_end_time + gap_length    # After test set with gap
+            ])
         
         train_dataset = Subset(dataset, train_idx)
         if add_other_trials:

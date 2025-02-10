@@ -56,11 +56,11 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5):
         print("Processing X_train...")
         X_train = np.array([sample[0].numpy() for sample in train_data])
         print("Processing y_train...")
-        y_train = np.array([sample[1].numpy() for sample in train_data])
+        y_train = np.array([sample[1] for sample in train_data])
         print("Processing X_test...")
         X_test = np.array([sample[0].numpy() for sample in test_data], dtype=int)
         print("Processing y_test...")
-        y_test = np.array([sample[1].numpy() for sample in test_data], dtype=int)
+        y_test = np.array([sample[1] for sample in test_data], dtype=int)
 
         # Flatten the electrode data if needed
         if len(X_train.shape) > 2:
@@ -69,7 +69,7 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5):
         
         # Train logistic regression
         print("Training logistic regression...")
-        clf = LogisticRegression(max_iter=1000, random_state=42)
+        clf = LogisticRegression(max_iter=1000, random_state=42, multi_class='multinomial')
         clf.fit(X_train, y_train)
         
         # Make predictions
@@ -79,7 +79,21 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5):
         # Calculate accuracy and AUROC
         print("Calculating accuracy and AUROC...")
         accuracy = accuracy_score(y_test, y_pred)
-        auroc = roc_auc_score(y_test, clf.predict_proba(X_test)[:, 1])
+        
+        # Calculate AUROC for multi-class using one-vs-rest approach
+        n_classes = len(np.unique(y_test))
+        if n_classes == 2:
+            auroc = roc_auc_score(y_test, clf.predict_proba(X_test)[:, 1])
+        else:
+            # For multi-class, calculate AUROC for each class vs rest
+            auroc_per_class = []
+            y_score = clf.predict_proba(X_test)
+            for i in range(n_classes):
+                # Create binary labels for current class
+                y_binary = (y_test == i).astype(int)
+                auroc_per_class.append(roc_auc_score(y_binary, y_score[:, i]))
+            auroc = np.mean(auroc_per_class)
+            
         fold_accuracies.append(accuracy)
         
         # Store fold results
@@ -91,6 +105,9 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5):
             'n_test_samples': len(y_test),
             'classification_report': classification_report(y_test, y_pred, output_dict=True)
         })
+        
+        if n_classes > 2:
+            fold_results[-1]['auroc_per_class'] = {f'class_{i}': float(auc) for i, auc in enumerate(auroc_per_class)}
         
         # Print fold results
         print(f"Fold {fold + 1} Accuracy: {accuracy:.4f}")
@@ -112,10 +129,11 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5):
         'k_folds': k_folds,
         'mean_accuracy': float(mean_accuracy),
         'std_accuracy': float(std_accuracy),
-        'fold_results': fold_results
+        'fold_results': fold_results,
+        'n_classes': int(n_classes)
     }
     
-    results_file = os.path.join(output_dir, f'run_{timestamp}_subject{subject_id}_trial{trial_id}_{eval_name}.json')
+    results_file = os.path.join(output_dir, f'linear_voltage_{timestamp}_subject{subject_id}_trial{trial_id}_{eval_name}.json')
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=4)
     

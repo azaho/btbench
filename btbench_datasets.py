@@ -63,13 +63,13 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
             word_gaps = []
             for i in range(len(self.all_words_df)):
                 if i == 0 or self.all_words_df.iloc[i]['sentence'] != self.all_words_df.iloc[i-1]['sentence']:
-                    word_gaps.append(-1)
+                    word_gaps.append(-1) 
                 else:
                     gap = self.all_words_df.iloc[i]['start'] - self.all_words_df.iloc[i-1]['end']
                     word_gaps.append(gap)
             self.all_words_df['word_gap'] = word_gaps
         
-        if eval_name in single_float_variables or eval_name == "word_gap":
+        if eval_name in single_float_variables:
             # Get indices for words in top and bottom quartiles
             all_labels = self.all_words_df[self.eval_name_remapped].to_numpy()
             label_percentiles = np.array([np.mean(all_labels < x) for x in all_labels])
