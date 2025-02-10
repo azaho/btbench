@@ -68,26 +68,35 @@ def create_performance_figure():
                 files = glob.glob(pattern)
                 
                 if files:
-                    # Average results across all matching files
-                    accuracies = []
-                    stds = []
+                    # First average within subjects across trials
+                    subject_averages = {}
                     for f in files:
                         with open(f, 'r') as json_file:
                             data = json.load(json_file)
-
+                            subject_id = data['subject_id']
+                            
                             if metric == 'accuracy':
-                                accuracies.append(data['mean_accuracy'])
+                                value = data['mean_accuracy']
                             else:
-                                accuracies.append(np.nanmean([fold_result['auroc'] for fold_result in data['fold_results']]))
+                                value = np.nanmean([fold_result['auroc'] for fold_result in data['fold_results']])
+                            
+                            if subject_id not in subject_averages:
+                                subject_averages[subject_id] = []
+                            subject_averages[subject_id].append(value)
+                    
+                    # Calculate mean for each subject
+                    subject_means = [np.mean(trials) for trials in subject_averages.values()]
+                    
+                    # Calculate overall mean and SEM across subjects
                     performance_data[task][model] = {
-                        'mean': np.nanmean(accuracies),
-                        'sem': np.nanstd(accuracies) / np.sqrt(len(accuracies)) if len(accuracies) > 0 else 0
+                        'mean': np.nanmean(subject_means),
+                        'sem': np.nanstd(subject_means) / np.sqrt(len(subject_means)) if len(subject_means) > 0 else 0
                     }
                 else:
                     # Use placeholder data if no files found
                     performance_data[task][model] = {
-                        'mean': 0,#np.random.uniform(0.5, 0.9),
-                        'sem': 0#np.random.uniform(0.02, 0.1)
+                        'mean': 0,
+                        'sem': 0
                     }
 
     # Create figure with 4x5 grid - reduced size
@@ -95,9 +104,6 @@ def create_performance_figure():
 
     # Flatten axs for easier iteration
     axs_flat = axs.flatten()
-
-    # Plot counter - start from 1 to skip first box
-    plot_idx = 1
 
     # Color palette
     colors = sns.color_palette("husl", 4)
@@ -108,18 +114,46 @@ def create_performance_figure():
         'Multimodal': colors[3]
     }
 
-    # Model color palette
-    model_colors = sns.color_palette("Set2", 3)
+    # Model color palette using viridis
+    model_colors = sns.color_palette("viridis", 2)
 
     # Bar width
     bar_width = 0.2
     
-    # Add methodology text in the first plot (top left)
+    # Calculate overall performance for each model
+    overall_performance = {}
+    for model in models:
+        means = [performance_data[task][model]['mean'] for task in task_list.keys()]
+        sems = [performance_data[task][model]['sem'] for task in task_list.keys()]
+        overall_performance[model] = {
+            'mean': np.nanmean(means),
+            'sem': np.sqrt(np.sum(np.array(sems)**2)) / len(sems)  # Combined SEM
+        }
+    
+    # Plot overall performance in first axis
     first_ax = axs_flat[0]
-    first_ax.axis('off')
-    # first_ax.text(0.5, 0.5, 
-    #              "5-fold cross validation\nMean accuracy across subjects",
-    #              ha='center', va='center', wrap=True)
+    for i, model in enumerate(models):
+        perf = overall_performance[model]
+        first_ax.bar(i * bar_width, perf['mean'], bar_width,
+                    yerr=perf['sem'],
+                    color=model_colors[i],
+                    capsize=6)
+    
+    first_ax.set_title('overall', fontsize=12, pad=10, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.5'))
+    if metric == 'accuracy':
+        first_ax.set_ylim(0.2, 1.0)
+    else:
+        first_ax.set_ylim(0.45, .8)
+        first_ax.set_yticks([0.5, 0.6, 0.7, 0.8])
+    first_ax.set_xticks([])
+    first_ax.set_ylabel(metric)
+    first_ax.axhline(y=0.5, color='black', linestyle='--', alpha=0.5)
+    first_ax.spines['top'].set_visible(False)
+    first_ax.spines['right'].set_visible(False)
+    first_ax.tick_params(axis='y')
+
+    # Plot counter - start from 1 for remaining plots
+    plot_idx = 1
 
     for task, chance_level in task_list.items():
         ax = axs_flat[plot_idx]
@@ -138,19 +172,16 @@ def create_performance_figure():
         if metric == 'accuracy':
             ax.set_ylim(0.2, 1.0)
         else:
-            ax.set_ylim(0.4, 1.0)
-            ax.set_yticks([0.4, 0.6, 0.8, 1.0])
+            ax.set_ylim(0.45, .8)
+            ax.set_yticks([0.5, 0.6, 0.7, 0.8])
         ax.set_xticks([])
-        if (plot_idx % 5 == 0) or (plot_idx == 1):  # Left-most plots
+        if (plot_idx % 5 == 0):  # Left-most plots
             ax.set_ylabel(metric)
 
         # Add horizontal line at chance level
         if metric == 'auroc':
             chance_level = 0.5
         ax.axhline(y=chance_level, color='black', linestyle='--', alpha=0.5)
-        
-        # Add category label in top left corner
-        #ax.text(0.02, 0.95, category, transform=ax.transAxes, alpha=0.7, ha='left', va='top')
         
         # Remove top and right spines
         ax.spines['top'].set_visible(False)

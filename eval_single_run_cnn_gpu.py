@@ -1,7 +1,8 @@
 import argparse
 import torch
 import numpy as np
-from sklearn.linear_model import LogisticRegression
+from torch import nn
+from torch.utils.data import DataLoader, TensorDataset
 from sklearn.metrics import accuracy_score, classification_report
 from btbench_train_test_splits import generate_splits_SS_ST
 from braintreebank_subject import Subject
@@ -37,8 +38,26 @@ def compute_spectrogram(data, fs=2048, max_freq=2000):
     
     return np.log10(Sxx[:, (f<max_freq) & (f>0)] + 1e-10)
 
-def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectrogram=False):
-    """Run linear classification for a given subject, trial, and eval_name.
+class MLPClassifierGPU(nn.Module):
+    def __init__(self, input_size, hidden_sizes, num_classes):
+        super().__init__()
+        layers = []
+        prev_size = input_size
+        for hidden_size in hidden_sizes:
+            layers.extend([
+                nn.Linear(prev_size, hidden_size),
+                nn.ReLU(),
+                nn.Dropout(0.2)
+            ])
+            prev_size = hidden_size
+        layers.append(nn.Linear(prev_size, num_classes))
+        self.model = nn.Sequential(*layers)
+        
+    def forward(self, x):
+        return self.model(x)
+
+def run_mlp_classification(subject_id, trial_id, eval_name, k_folds=5, spectrogram=False):
+    """Run MLP classification for a given subject, trial, and eval_name.
     
     Args:
         subject_id (int): Subject ID
@@ -46,12 +65,15 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
         eval_name (str): eval_name name (e.g., "rms" for volume classification)
         k_folds (int): Number of cross-validation folds
     """
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
+    
     suffix = '_spectrogram' if spectrogram else '_voltage'
     # Check if results file already exists
     output_dir = 'eval_results'
     # Check if any matching results files exist using glob
     import glob
-    results_pattern = os.path.join(output_dir, f'linear{suffix}_*_subject{subject_id}_trial{trial_id}_{eval_name}.json')
+    results_pattern = os.path.join(output_dir, f'mlp{suffix}_*_subject{subject_id}_trial{trial_id}_{eval_name}.json')
     matching_files = glob.glob(results_pattern)
     if matching_files:
         print(f"Results file already exists for this configuration. Skipping...")
@@ -90,65 +112,93 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
 
         sample_time_from, sample_time_to = 1024, 3072 # get the first second of neural data after word onset
         
-        # Convert dataset to numpy arrays
-        # Convert to numpy arrays in one pass
+        # Convert dataset to tensors
         print(f"Processing train data... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
         X_train = []
         y_train = []
         for i in range(len(train_data)):
             features, label = train_data[i]
-            features = features.numpy()[:, sample_time_from:sample_time_to]
-            if spectrogram: features = compute_spectrogram(features)
+            features = features[:, sample_time_from:sample_time_to]
+            if spectrogram: 
+                features = torch.from_numpy(compute_spectrogram(features.numpy())).float()
             X_train.append(features.flatten())
             y_train.append(label)
-        X_train = np.array(X_train)
-        y_train = np.array(y_train, dtype=int)
-        print("Train dataset loaded")
+        X_train = torch.stack(X_train)
+        y_train = torch.tensor(y_train, dtype=torch.long)
 
         print(f"Processing test data... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
         X_test = []
         y_test = []
         for i in range(len(test_data)):
             features, label = test_data[i]
-            features = features.numpy()[:, sample_time_from:sample_time_to]
-            if spectrogram: features = compute_spectrogram(features)
+            features = features[:, sample_time_from:sample_time_to]
+            if spectrogram:
+                features = torch.from_numpy(compute_spectrogram(features.numpy())).float()
             X_test.append(features.flatten())
             y_test.append(label)
-        X_test = np.array(X_test)
-        y_test = np.array(y_test, dtype=int)
-        print("Test dataset loaded")
+        X_test = torch.stack(X_test)
+        y_test = torch.tensor(y_test, dtype=torch.long)
+
+        # Move data to GPU
+        X_train = X_train.to(device)
+        y_train = y_train.to(device)
+        X_test = X_test.to(device)
+        y_test = y_test.to(device)
+
+        # Create data loaders
+        train_dataset = TensorDataset(X_train, y_train)
+        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
         
-        # Train logistic regression with optimized parameters
-        print(f"Training logistic regression... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
-        clf = LogisticRegression(
-            max_iter=10000,
-            random_state=42,
-            solver='lbfgs',  
-            n_jobs=4,     # Use 4
-            tol=1e-3,      # Slightly less strict convergence criterion
-        )
-        clf.fit(X_train, y_train)
+        # Initialize model
+        n_classes = len(torch.unique(y_train))
+        model = MLPClassifierGPU(
+            input_size=X_train.shape[1],
+            hidden_sizes=[256, 128],
+            num_classes=n_classes
+        ).to(device)
         
-        # Make predictions
-        print(f"Making predictions... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
-        y_pred = clf.predict(X_test)
+        # Training setup
+        criterion = nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(model.parameters())
         
-        # Calculate accuracy and AUROC
-        print(f"Calculating accuracy and AUROC... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
-        accuracy = accuracy_score(y_test, y_pred)
+        # Training loop
+        print(f"Training MLP... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
+        model.train()
+        for epoch in range(100):  # Max 100 epochs
+            total_loss = 0
+            for batch_X, batch_y in train_loader:
+                optimizer.zero_grad()
+                outputs = model(batch_X)
+                loss = criterion(outputs, batch_y)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+            
+            if epoch % 1 == 0:
+                print(f'Epoch {epoch}, Loss: {total_loss/len(train_loader):.4f}')
         
-        # Calculate AUROC for multi-class using one-vs-rest approach
-        n_classes = len(np.unique(y_test))
+        # Evaluation
+        model.eval()
+        with torch.no_grad():
+            y_pred = model(X_test)
+            y_score = torch.softmax(y_pred, dim=1)
+            y_pred = torch.argmax(y_pred, dim=1)
+        
+        # Convert predictions back to CPU for metric calculation
+        y_pred_cpu = y_pred.cpu().numpy()
+        y_test_cpu = y_test.cpu().numpy()
+        y_score_cpu = y_score.cpu().numpy()
+        
+        # Calculate metrics
+        accuracy = accuracy_score(y_test_cpu, y_pred_cpu)
+        
         if n_classes == 2:
-            auroc = roc_auc_score(y_test, clf.predict_proba(X_test)[:, 1])
+            auroc = roc_auc_score(y_test_cpu, y_score_cpu[:, 1])
         else:
-            # For multi-class, calculate AUROC for each class vs rest
             auroc_per_class = []
-            y_score = clf.predict_proba(X_test)
             for i in range(n_classes):
-                # Create binary labels for current class
-                y_binary = (y_test == i).astype(int)
-                auroc_per_class.append(roc_auc_score(y_binary, y_score[:, i]))
+                y_binary = (y_test_cpu == i).astype(int)
+                auroc_per_class.append(roc_auc_score(y_binary, y_score_cpu[:, i]))
             auroc = np.mean(auroc_per_class)
             
         fold_accuracies.append(accuracy)
@@ -160,7 +210,7 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
             'auroc': float(auroc),
             'n_train_samples': len(y_train),
             'n_test_samples': len(y_test),
-            'classification_report': classification_report(y_test, y_pred, output_dict=True)
+            'classification_report': classification_report(y_test_cpu, y_pred_cpu, output_dict=True)
         })
         
         if n_classes > 2:
@@ -169,14 +219,15 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
         # Print fold results
         print(f"Fold {fold + 1} Accuracy: {accuracy:.4f} (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
         print("\nClassification Report:")
-        print(classification_report(y_test, y_pred))
+        print(classification_report(y_test_cpu, y_pred_cpu))
 
-        # clean up memory
+        # Clean up memory
         del X_train, y_train, X_test, y_test, y_pred
-        del clf, accuracy, auroc
+        del model, accuracy, auroc
         if n_classes > 2:
-            del auroc_per_class, y_score, y_binary
-        gc.collect()  # Force garbage collection
+            del auroc_per_class, y_score
+        torch.cuda.empty_cache()
+        gc.collect()
     
     # Calculate and print overall results
     mean_accuracy = np.mean(fold_accuracies)
@@ -197,7 +248,7 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
         'n_classes': int(n_classes)
     }
     
-    results_file = os.path.join(output_dir, f'linear{suffix}_{timestamp}_subject{subject_id}_trial{trial_id}_{eval_name}.json')
+    results_file = os.path.join(output_dir, f'mlp{suffix}_{timestamp}_subject{subject_id}_trial{trial_id}_{eval_name}.json')
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=4)
     
@@ -205,7 +256,7 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run linear classification on brain data")
+    parser = argparse.ArgumentParser(description="Run MLP classification on brain data")
     parser.add_argument("--subject", type=int, required=True, help="Subject ID")
     parser.add_argument("--trial", type=int, required=True, help="Trial ID")
     parser.add_argument("--eval_name", type=str, required=True, help="eval_name name (e.g., 'rms')")
@@ -214,7 +265,7 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    run_linear_classification(
+    run_mlp_classification(
         subject_id=args.subject,
         trial_id=args.trial,
         eval_name=args.eval_name,

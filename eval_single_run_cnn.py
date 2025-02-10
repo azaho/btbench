@@ -1,7 +1,7 @@
 import argparse
 import torch
 import numpy as np
-from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score, classification_report
 from btbench_train_test_splits import generate_splits_SS_ST
 from braintreebank_subject import Subject
@@ -37,8 +37,8 @@ def compute_spectrogram(data, fs=2048, max_freq=2000):
     
     return np.log10(Sxx[:, (f<max_freq) & (f>0)] + 1e-10)
 
-def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectrogram=False):
-    """Run linear classification for a given subject, trial, and eval_name.
+def run_mlp_classification(subject_id, trial_id, eval_name, k_folds=5, spectrogram=False):
+    """Run MLP classification for a given subject, trial, and eval_name.
     
     Args:
         subject_id (int): Subject ID
@@ -51,7 +51,7 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
     output_dir = 'eval_results'
     # Check if any matching results files exist using glob
     import glob
-    results_pattern = os.path.join(output_dir, f'linear{suffix}_*_subject{subject_id}_trial{trial_id}_{eval_name}.json')
+    results_pattern = os.path.join(output_dir, f'mlp{suffix}_*_subject{subject_id}_trial{trial_id}_{eval_name}.json')
     matching_files = glob.glob(results_pattern)
     if matching_files:
         print(f"Results file already exists for this configuration. Skipping...")
@@ -118,14 +118,17 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
         y_test = np.array(y_test, dtype=int)
         print("Test dataset loaded")
         
-        # Train logistic regression with optimized parameters
-        print(f"Training logistic regression... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
-        clf = LogisticRegression(
-            max_iter=10000,
+        # Train MLP with optimized parameters
+        print(f"Training MLP... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
+        clf = MLPClassifier(
+            hidden_layer_sizes=(256, 128),  # Two hidden layers
+            activation='relu',
+            solver='adam',
+            max_iter=1000,
             random_state=42,
-            solver='lbfgs',  
-            n_jobs=4,     # Use 4
-            tol=1e-3,      # Slightly less strict convergence criterion
+            early_stopping=True,
+            n_iter_no_change=10,
+            verbose=True
         )
         clf.fit(X_train, y_train)
         
@@ -197,7 +200,7 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
         'n_classes': int(n_classes)
     }
     
-    results_file = os.path.join(output_dir, f'linear{suffix}_{timestamp}_subject{subject_id}_trial{trial_id}_{eval_name}.json')
+    results_file = os.path.join(output_dir, f'mlp{suffix}_{timestamp}_subject{subject_id}_trial{trial_id}_{eval_name}.json')
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=4)
     
@@ -205,7 +208,7 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run linear classification on brain data")
+    parser = argparse.ArgumentParser(description="Run MLP classification on brain data")
     parser.add_argument("--subject", type=int, required=True, help="Subject ID")
     parser.add_argument("--trial", type=int, required=True, help="Trial ID")
     parser.add_argument("--eval_name", type=str, required=True, help="eval_name name (e.g., 'rms')")
@@ -214,7 +217,7 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    run_linear_classification(
+    run_mlp_classification(
         subject_id=args.subject,
         trial_id=args.trial,
         eval_name=args.eval_name,

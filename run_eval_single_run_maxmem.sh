@@ -37,8 +37,8 @@ declare -a eval_names=(
 )
 
 # Calculate indices for this task
-PAIR_IDX=$(( ($SLURM_ARRAY_TASK_ID-1) // 2 / 19 ))
-EVAL_IDX=$(( ($SLURM_ARRAY_TASK_ID-1) // 2 % 19 ))
+PAIR_IDX=$(( ($SLURM_ARRAY_TASK_ID-1) / 2 / 19 ))
+EVAL_IDX=$(( ($SLURM_ARRAY_TASK_ID-1) / 2 % 19 ))
 SPECTROGRAM=$(( ($SLURM_ARRAY_TASK_ID-1) % 2 ))
 
 # Get subject, trial and eval name for this task
