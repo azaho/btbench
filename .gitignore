@@ -15,4 +15,4 @@ r/
 r_old/
 _temp.ipynb
 figures/.*
-eval_results_old/*
+eval_results_old/*.DS_Store
