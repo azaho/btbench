@@ -43,7 +43,8 @@ jobs:
         env:
           LEADERBOARD_PAT: ${{ secrets.LEADERBOARD_PAT }}
         run: |
-          git clone https://x-access-token:${{ secrets.LEADERBOARD_PAT }}@github.com/azaho/leaderboard.git
+          export GIT_PAT=${{ secrets.LEADERBOARD_PAT }}
+          git clone https://x-access-token:$GIT_PAT@github.com/azaho/leaderboard.git
           cp leaderboard/public/leaderboard_data.json leaderboard/
           cd leaderboard
           git config --global user.name "GitHub Actions"
