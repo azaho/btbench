@@ -1,6 +1,6 @@
 {
   "name": "Model Z",
-  "rocAuc": 0.87,
+  "rocAuc": 0.97,
   "accuracy": 86,
   "org": "Harvard",
   "date": "2025-02-11"
