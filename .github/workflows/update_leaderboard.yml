@@ -30,16 +30,18 @@ jobs:
         run: python update_leaderboard.py
 
       - name: Commit and Push Changes in btbench
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "github-actions@github.com"
           git add leaderboard/public/leaderboard_data.json
           git commit -m "Automated update of leaderboard data"
           git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push updated JSON to leaderboard repo
+        env:
+          LEADERBOARD_PAT: ${{ secrets.LEADERBOARD_PAT }}
         run: |
           git clone https://x-access-token:${{ secrets.LEADERBOARD_PAT 
 }}@github.com/azaho/leaderboard.git
@@ -50,6 +52,4 @@ jobs:
           git add leaderboard_data.json
           git commit -m "Automated leaderboard update from btbench"
           git push origin main
-        env:
-          LEADERBOARD_PAT: ${{ secrets.LEADERBOARD_PAT }}
 
