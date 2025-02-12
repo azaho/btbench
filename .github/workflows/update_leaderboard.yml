@@ -22,7 +22,7 @@ jobs:
         env:
           LEADERBOARD_PAT: ${{ secrets.LEADERBOARD_PAT }}
         run: |
-          git clone https://x-access-token:${{ secrets.LEADERBOARD_PAT }}@github.com/azaho/leaderboard.git
+          git clone https://x-access-token:${{ secrets.LEADERBOARD_PAT }}@github.com/bstankovits/leaderboard.git
 
       - name: Set up Python
         uses: actions/setup-python@v4
