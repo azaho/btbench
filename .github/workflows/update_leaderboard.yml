@@ -41,7 +41,7 @@ jobs:
         run: |
           cd leaderboard
           git config --global user.name "Bennett Stankovits"
-          git config --global user.email "your-email@example.com"
+          git config --global user.email "bstankov@mit.edu"
           git add public/leaderboard_data.json
           git commit -m "Automated update of leaderboard data"
           git push origin main
