@@ -40,8 +40,8 @@ jobs:
           LEADERBOARD_PAT: ${{ secrets.LEADERBOARD_PAT }}
         run: |
           cd leaderboard
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "github-actions@github.com"
+          git config --global user.name "Bennett Stankovits"
+          git config --global user.email "your-email@example.com"
           git add public/leaderboard_data.json
           git commit -m "Automated update of leaderboard data"
           git push origin main
