@@ -50,7 +50,7 @@ def process_subject(subject_id, save_dir=SAVE_SPEECH_SELECTIVITY_DATA_DIR, verbo
 
         all_electrode_activities.append(electrode_activities)
         all_speech_nonspeech_condition.append(speech_nonspeech_condition)
-        subject.unload_neural_data(trial_id) # unload neural data from RAM after loading it into the dataset
+        subject.clear_neural_data_cache(trial_id) # unload neural data from RAM after loading it into the dataset
     electrode_activities = np.concatenate(all_electrode_activities, axis=0)
     speech_nonspeech_condition = np.concatenate(all_speech_nonspeech_condition)
     

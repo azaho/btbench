@@ -1,55 +1,57 @@
 import h5py
 import os
-import matplotlib.pyplot as plt
 import json
 import pandas as pd
-from scipy import signal, stats
 import numpy as np
-from btbench_config import *
-import gc
 
-class Subject:
+from btbench_config import *
+
+class BrainTreebankSubject:
     """ 
         This class is used to load the neural data for a given subject and trial.
         It also contains methods to get the data for a given electrode and trial, and to get the spectrogram for a given electrode and trial.
     """
-    def __init__(self, subject_id, sampling_rate=SAMPLING_RATE, allow_corrupted=True, cache=False):
+    def __init__(self, subject_id, allow_corrupted=True, cache=False, dtype=np.float32):
         self.subject_id = subject_id
-        self.sampling_rate = sampling_rate
-        self.localization_data = self._load_localization_data()
-        self.neural_data = {}
-        self.h5f_files = {}
+        self.subject_identifier = f'btbank{subject_id}'
+        self.allow_corrupted = allow_corrupted
         self.cache = cache
-        if self.cache: self.neural_data_cache = {}
+        self.dtype = dtype  # Store dtype as instance variable
+
+        self.localization_data = self._load_localization_data()
         self.electrode_labels = self._get_all_electrode_names()
-        self.h5_neural_data_keys = {e:"electrode_"+str(i) for i, e in enumerate(self.electrode_labels)}
-        self.corrupted_electrodes = self._get_corrupted_electrodes("corrupted_elec.json")
-        if not allow_corrupted:
-            self.electrode_labels = [e for e in self.electrode_labels if e not in self.corrupted_electrodes]
-            for e in self.corrupted_electrodes:
-                assert e in self.h5_neural_data_keys, f"Corrupted electrode {e} not found in electrode labels"
-                del self.h5_neural_data_keys[e]
+
+        self.h5_neural_data_keys = {e:"electrode_"+str(i) for i, e in enumerate(self.electrode_labels)} # only used for accessing the neural data in h5 files
+        self.electrode_labels = self._filter_electrode_labels()
         self.electrode_ids = {e:i for i, e in enumerate(self.electrode_labels)}
-        self.laplacian_electrodes, self.electrode_neighbors = self._get_all_laplacian_electrodes()
+
         self.electrode_data_length = {}
+        self.neural_data_cache = {} # structure: {trial_id: NumPy Array of shape (n_electrodes, n_samples)}
+        self.h5_files = {} # structure: {trial_id: h5py.File}
 
-    def _clean_electrode_label(self, electrode_label):
-        return electrode_label.replace('*', '').replace('#', '')
+        # For downstream Laplacian rereferencing
+        self.laplacian_electrodes, self.electrode_neighbors = self._get_all_laplacian_electrodes()
 
-    def _get_corrupted_electrodes(self, corrupted_electrodes_file):
-        corrupted_electrodes_file = os.path.join(ROOT_DIR, corrupted_electrodes_file)
-        corrupted_electrodes = json.load(open(corrupted_electrodes_file))
-        corrupted_electrodes = [self._clean_electrode_label(e) for e in corrupted_electrodes[f'sub_{self.subject_id}']]
-        # add electrodes that start with "DC" to corrupted electrodes, because they don't have brain signal, instead are used for triggers
-        corrupted_electrodes += [e for e in self.electrode_labels if (e.upper().startswith("DC") or e.upper().startswith("TRIG")) and e not in corrupted_electrodes] 
-        return corrupted_electrodes
-
+    def get_n_electrodes(self):
+        return len(self.electrode_labels)
+    def _load_localization_data(self):
+        """Load localization data for this electrode's subject from depth-wm.csv"""
+        loc_file = os.path.join(ROOT_DIR, f'localization/sub_{self.subject_id}/depth-wm.csv')
+        df = pd.read_csv(loc_file)
+        df['Electrode'] = df['Electrode'].apply(self._clean_electrode_label)
+        return df
     def _get_all_electrode_names(self):
         electrode_labels_file = os.path.join(ROOT_DIR, f'electrode_labels/sub_{self.subject_id}/electrode_labels.json')
         electrode_labels = json.load(open(electrode_labels_file))
         electrode_labels = [self._clean_electrode_label(e) for e in electrode_labels]
         return electrode_labels
-
+    def _clean_electrode_label(self, electrode_label):
+        return electrode_label.replace('*', '').replace('#', '')
+    def _get_corrupted_electrodes(self, corrupted_electrodes_file):
+        corrupted_electrodes_file = os.path.join(ROOT_DIR, corrupted_electrodes_file)
+        corrupted_electrodes = json.load(open(corrupted_electrodes_file))
+        corrupted_electrodes = [self._clean_electrode_label(e) for e in corrupted_electrodes[f'sub_{self.subject_id}']]
+        return corrupted_electrodes
     def _get_all_laplacian_electrodes(self, verbose=False):
         """
             Get all laplacian electrodes for a given subject. This function is originally from
@@ -80,38 +82,67 @@ class Subject:
         electrodes = [f'{x}{y}' for (x,y) in laplacian_stems]
         neighbors = {e: get_neighbors(stem_electrode_name(e)) for e in electrodes}
         return electrodes, neighbors
-
-    def load_neural_data(self, trial_id):
-        if trial_id in self.neural_data: return
+    def _filter_electrode_labels(self):
+        """
+            Filter the electrode labels to remove corrupted electrodes and electrodes that don't have brain signal
+        """
+        filtered_electrode_labels = self.electrode_labels
+        # Step 1. Remove corrupted electrodes
+        if not self.allow_corrupted:
+            corrupted_electrodes_file = os.path.join(ROOT_DIR, "corrupted_elec.json")
+            corrupted_electrodes = json.load(open(corrupted_electrodes_file))
+            corrupted_electrodes = [self._clean_electrode_label(e) for e in corrupted_electrodes[f'sub_{self.subject_id}']]
+            filtered_electrode_labels = [e for e in filtered_electrode_labels if e not in corrupted_electrodes]
+        # Step 2. Remove trigger electrodes
+        trigger_electrodes = [e for e in self.electrode_labels if (e.upper().startswith("DC") or e.upper().startswith("TRIG"))]
+        filtered_electrode_labels = [e for e in filtered_electrode_labels if e not in trigger_electrodes]
+        return filtered_electrode_labels
+    
+    def cache_neural_data(self, trial_id):
+        assert self.cache, "Cache is not enabled; not able to cache neural data."
+        if trial_id in self.neural_data_cache: return  # no need to cache again
+        
+        # Open file with context manager to ensure proper closing
         neural_data_file = os.path.join(ROOT_DIR, f'sub_{self.subject_id}_trial{trial_id:03}.h5')
-        h5f = h5py.File(neural_data_file, 'r', locking=False)
-        self.h5f_files[trial_id] = h5f
-        self.neural_data[trial_id] = h5f['data']
-
-        neural_data_key = self.h5_neural_data_keys[self.electrode_labels[0]]
-        self.electrode_data_length[trial_id] = self.neural_data[trial_id][neural_data_key].shape[0]
-
-        if self.cache:
-            self.neural_data_cache[trial_id] = np.zeros((len(self.electrode_labels), self.electrode_data_length[trial_id]))
+        with h5py.File(neural_data_file, 'r', locking=False) as f:
+            # Get data length first
+            self.electrode_data_length[trial_id] = f['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0]
+            # Pre-allocate array with specific dtype to reduce memory
+            self.neural_data_cache[trial_id] = np.zeros((len(self.electrode_labels), 
+                                                        self.electrode_data_length[trial_id]), 
+                                                        dtype=self.dtype)
+            # Load data
             for electrode_label, electrode_id in self.electrode_ids.items():
                 neural_data_key = self.h5_neural_data_keys[electrode_label]
-                self.neural_data_cache[trial_id][electrode_id] = self.neural_data[trial_id][neural_data_key][:]
-            self.neural_data[trial_id] = {}
-            h5f.close()
-            gc.collect()
-    def unload_neural_data(self, trial_id):
-        if trial_id in self.neural_data: del self.neural_data[trial_id]
-        if trial_id in self.neural_data_cache: del self.neural_data_cache[trial_id]
-        if trial_id in self.h5f_files: del self.h5f_files[trial_id]
+                self.neural_data_cache[trial_id][electrode_id] = f['data'][neural_data_key][:].astype(self.dtype)
 
-    def _load_localization_data(self):
-        """Load localization data for this electrode's subject from depth-wm.csv"""
-        loc_file = os.path.join(ROOT_DIR, f'localization/sub_{self.subject_id}/depth-wm.csv')
-        df = pd.read_csv(loc_file)
-        df['Electrode'] = df['Electrode'].apply(self._clean_electrode_label)
-        return df
+    def _calculate_laplacian_rereferencing_addon(self, trial_id):
+        assert trial_id in self.neural_data_cache, "Trial data must be cached before Laplacian rereferencing can be applied."
+        neural_data_cache = self.neural_data_cache[trial_id]
+        neighbors_data = np.zeros((len(self.electrode_labels), neural_data_cache.shape[1]))
+        for electrode_label, electrode_id in self.electrode_ids.items():
+            assert electrode_label in self.electrode_neighbors, f"Neighbor electrodes for electrode {electrode_label} not found in electrode_neighbors. A mistake upstream must have happened."
+            neighbors = self.electrode_neighbors[electrode_label]
+            neighbors_data[electrode_id] = np.mean([neural_data_cache[self.electrode_ids[n]][:] for n in neighbors], axis=0)
+        return neighbors_data
+    def clear_neural_data_cache(self, trial_id=None):
+        if trial_id is None:
+            self.neural_data_cache = {}
+            self.h5_files = {}
+        else:
+            del self.neural_data_cache[trial_id]
+            del self.h5_files[trial_id]
+    def open_neural_data_file(self, trial_id):
+        assert not self.cache, "Cache is enabled; Use cache_neural_data() instead."
+        if trial_id in self.h5_files: return
+        neural_data_file = os.path.join(ROOT_DIR, f'sub_{self.subject_id}_trial{trial_id:03}.h5')
+        self.h5_files[trial_id] = h5py.File(neural_data_file, 'r', locking=False)
+        self.electrode_data_length[trial_id] = self.h5_files[trial_id]['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0]
+    def load_neural_data(self, trial_id):
+        if self.cache: self.cache_neural_data(trial_id)
+        else: self.open_neural_data_file(trial_id)
     
-    def get_electrode_coordinates(self, laplacian_rereferenced=False):
+    def get_electrode_coordinates(self):
         """
             Get the coordinates of the electrodes for this subject
             Returns:
@@ -119,8 +150,8 @@ class Subject:
                 All coordinates are in between 50mm and 200mm for this dataset (check braintreebank_utils.ipynb for statistics)
         """
         # Create array of coordinates in same order as electrode_labels
-        coordinates = np.zeros((self.get_n_electrodes(laplacian_rereferenced), 3))
-        for i, label in enumerate(self.electrode_labels if not laplacian_rereferenced else self.laplacian_electrodes):
+        coordinates = np.zeros((len(self.electrode_labels), 3))
+        for i, label in enumerate(self.electrode_labels):
             row = self.get_electrode_metadata(label)
             coordinates[i] = [row['L'], row['I'], row['P']]
         return coordinates
@@ -133,82 +164,83 @@ class Subject:
         filtered_df = self.localization_data[self.localization_data['Electrode'].isin(self.electrode_labels)]
         ordered_df = pd.DataFrame([filtered_df[filtered_df['Electrode'] == label].iloc[0] for label in self.electrode_labels])
         return ordered_df.reset_index(drop=True)
-    def get_n_electrodes(self, laplacian_rereferenced=False):
-        return len(self.laplacian_electrodes if laplacian_rereferenced else self.electrode_labels)
 
     def get_electrode_data(self, electrode_label, trial_id, window_from=None, window_to=None):
-        """
-        Get the data for a given electrode for a given trial.
-        If cache is True, all of the data is cached in self.neural_data_cache[trial_id][electrode_label] (not just the window)
-        """
-        neural_data_key = self.h5_neural_data_keys[electrode_label]
-        if trial_id not in self.neural_data: self.load_neural_data(trial_id)
+        if trial_id not in self.electrode_data_length: self.load_neural_data(trial_id)
         if window_from is None: window_from = 0
         if window_to is None: window_to = self.electrode_data_length[trial_id]
         if self.cache:
+            if trial_id not in self.neural_data_cache: self.cache_neural_data(trial_id)
             electrode_id = self.electrode_ids[electrode_label]
             return self.neural_data_cache[trial_id][electrode_id][window_from:window_to]
-        else: return self.neural_data[trial_id][neural_data_key][window_from:window_to]
-    def get_all_electrode_data(self, trial_id, window_from=None, window_to=None):
-        if window_from is None: window_from = 0
-        if window_to is None: 
-            neural_data_key = self.h5_neural_data_keys[self.electrode_labels[0]]
-            window_to = self.electrode_data_length[trial_id] 
-        if self.cache: return self.neural_data_cache[trial_id][:, window_from:window_to]
-
-        all_electrode_data = np.zeros((len(self.electrode_labels), window_to-window_from))
-        for electrode_label, electrode_id in self.electrode_ids.items():
-            neural_data_key = self.h5_neural_data_keys[electrode_label]
-            all_electrode_data[electrode_id] = self.get_electrode_data(electrode_label, trial_id, window_from=window_from, window_to=window_to)
-        return all_electrode_data
-
-    def get_laplacian_rereferenced_electrode_data(self, electrode_label, trial_id, window_from=None, window_to=None):
-        if electrode_label not in self.laplacian_electrodes:
-            raise ValueError(f"Electrode {electrode_label} does not have neighbors")
-        neighbors = self.electrode_neighbors[electrode_label]
-        neighbor_data = [self.get_electrode_data(n, trial_id, window_from=window_from, window_to=window_to) for n in neighbors]
-        return self.get_electrode_data(electrode_label, trial_id, window_from=window_from, window_to=window_to)-np.mean(neighbor_data, axis=0)
-    def get_spectrogram(self, electrode_label, trial_id, window_from=None, window_to=None, 
-                        normalizing_params=None, laplacian_rereferenced=False, return_power=True, 
-                        normalize_per_freq=False, nperseg=256, noverlap=0, power_smoothing_factor=1e-5,
-                        min_freq=1, max_freq=None): # min_freq=1 to avoid 0 Hz, which has 0 std in some cases.
-        if laplacian_rereferenced: 
-            data = self.get_laplacian_rereferenced_electrode_data(electrode_label, trial_id, window_from=window_from, window_to=window_to)
-        else: data = self.get_electrode_data(electrode_label, trial_id, window_from=window_from, window_to=window_to)
-
-        f, t, Sxx = signal.spectrogram(data, fs=self.sampling_rate, nperseg=nperseg, noverlap=noverlap, window='boxcar')
-        mask = np.ones(f.shape, dtype=bool)
-        if min_freq is not None:
-            mask = (f>=min_freq)
-        if max_freq is not None:
-            mask = (f<=max_freq) & mask
-        f, Sxx = f[mask], Sxx[mask] # only keep frequencies up to some frequency
-        if return_power: Sxx = 10 * np.log10(Sxx + power_smoothing_factor) # puts a lower bound of -50 on the power with the default power_smoothing_factor
-        if normalize_per_freq: 
-            if normalizing_params is None: 
-                normalizing_params = np.mean(Sxx, axis=1), np.std(Sxx, axis=1)
-            Sxx = (Sxx - normalizing_params[0][:, None])/normalizing_params[1][:, None]
-        return f, t, Sxx
-    def get_electrode_data_partial(self, electrode_label, trial_id, window_from, window_to):
-        data = self.get_electrode_data(electrode_label, trial_id)
-        return data[window_from:window_to]
-    def get_spectrogram_normalizing_params(self, electrode_label, trial_id, laplacian_rereferenced=False):
-        f, t, Sxx = self.get_spectrogram(electrode_label, trial_id, laplacian_rereferenced=laplacian_rereferenced)
-        return np.mean(Sxx, axis=1), np.std(Sxx, axis=1)
-    def get_electrode_data_normalizing_params(self, electrode_label, trial_id, laplacian_rereferenced=False):
-        if laplacian_rereferenced:
-            data = self.get_laplacian_rereferenced_electrode_data(electrode_label, trial_id)
         else:
-            data = self.get_electrode_data(electrode_label, trial_id)
-        return np.mean(data, axis=0), np.std(data, axis=0)
-    def close_all_files(self):
-        for h5f in self.h5f_files.values():
-            h5f.close()
-        self.neural_data = {}
-        self.neural_data_cache = {}
-        self.h5f_files = {}
+            if trial_id not in self.h5_files: self.open_neural_data_file(trial_id)
+            neural_data_key = self.h5_neural_data_keys[electrode_label]
+            return self.h5_files[trial_id]['data'][neural_data_key][window_from:window_to].astype(self.dtype)
+
+    def get_all_electrode_data(self, trial_id, window_from=None, window_to=None):
+        if trial_id not in self.electrode_data_length: self.load_neural_data(trial_id)
+        if window_from is None: window_from = 0
+        if window_to is None: window_to = self.electrode_data_length[trial_id]
+        if self.cache: 
+            return self.neural_data_cache[trial_id][:, window_from:window_to]
+        else:
+            all_electrode_data = np.zeros((len(self.electrode_labels), window_to-window_from), dtype=self.dtype)
+            for electrode_label, electrode_id in self.electrode_ids.items():
+                all_electrode_data[electrode_id] = self.get_electrode_data(electrode_label, trial_id, window_from=window_from, window_to=window_to)
+            return all_electrode_data
+
 
 if __name__ == "__main__":
-    subject = Subject(3, cache=False)
+    # This code checks the memory usage of the Subject class for a given trial.
+    # Subject 3 trial 0 weights aeound 3.5GB on the disk, which is achieved when using bfloat16 dtype.
+    # When using np.float32, the numpy array weighs around 6-7GB.
+    import psutil
+    from ml_dtypes import bfloat16
+    import sys
+    process = psutil.Process()
+
+    def print_memory_usage(label):
+        memory_mb = process.memory_info().rss / 1024 / 1024
+        print(f"{label}: {memory_mb:.2f} MB")
+
+    print_memory_usage("Initial RAM usage")
+    
+    subject = BrainTreebankSubject(3, cache=True, dtype=bfloat16)
+    print_memory_usage("After creating Subject")
+    
+    # Print size of major attributes
+    print("\nSize of major attributes:")
+    for attr_name, attr_value in subject.__dict__.items():
+        if isinstance(attr_value, (dict, list, np.ndarray)):
+            size_mb = sys.getsizeof(attr_value) / 1024 / 1024
+            if isinstance(attr_value, dict):
+                # For dictionaries, also check values
+                for v in attr_value.values():
+                    if isinstance(v, np.ndarray):
+                        size_mb += v.nbytes / 1024 / 1024
+            elif isinstance(attr_value, np.ndarray):
+                size_mb = attr_value.nbytes / 1024 / 1024
+            print(f"{attr_name}: {size_mb:.2f} MB")
+    
     subject.load_neural_data(0)
-    print(subject.get_all_electrode_data(0, 0, 100).shape)
+    print_memory_usage("\nAfter loading neural data")
+    
+    data = subject.get_all_electrode_data(0, 0, 100)
+    print_memory_usage("After getting electrode data")
+    
+    # Print shape and memory info of the cached data
+    if subject.neural_data_cache:
+        for trial_id, array in subject.neural_data_cache.items():
+            print(f"\nTrial {trial_id} cache info:")
+            print(f"Shape: {array.shape}")
+            print(f"Dtype: {array.dtype}")
+            print(f"Memory usage: {array.nbytes / 1024 / 1024:.2f} MB")
+
+    import gc
+    gc.collect()
+    print_memory_usage("After garbage collection")
+
+    print(f"Data shape: {data.shape}")
+
+Subject = BrainTreebankSubject # alias for convenience
