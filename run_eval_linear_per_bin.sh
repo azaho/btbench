@@ -18,6 +18,8 @@ declare -a eval_names=(
     "word_length"
     "volume"
     "word_head_pos"
+    "gpt2_surprisal"
+    "onset"
 )
 
 # Calculate indices for this task

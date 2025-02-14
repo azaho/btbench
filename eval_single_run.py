@@ -37,7 +37,7 @@ def compute_spectrogram(data, fs=2048, max_freq=2000):
     
     return np.log10(Sxx[:, (f<max_freq) & (f>0)] + 1e-10)
 
-def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectrogram=False):
+def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectrogram=False, spectrogram_normalize=False):
     """Run linear classification for a given subject, trial, and eval_name.
     
     Args:
@@ -47,6 +47,8 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
         k_folds (int): Number of cross-validation folds
     """
     suffix = '_spectrogram' if spectrogram else '_voltage'
+    if spectrogram and spectrogram_normalize:
+        suffix += '_normalized'
     # Check if results file already exists
     output_dir = 'eval_results'
     # Check if any matching results files exist using glob
@@ -104,6 +106,9 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
         X_train = np.array(X_train)
         y_train = np.array(y_train, dtype=int)
         print("Train dataset loaded")
+        if spectrogram_normalize:
+            X_train = (X_train - X_train.mean(axis=0, keepdims=True)) / (X_train.std(axis=0, keepdims=True) + 1e-10)
+
 
         print(f"Processing test data... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
         X_test = []
@@ -117,6 +122,9 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
         X_test = np.array(X_test)
         y_test = np.array(y_test, dtype=int)
         print("Test dataset loaded")
+        if spectrogram_normalize:
+            X_test = (X_test - X_test.mean(axis=0, keepdims=True)) / (X_test.std(axis=0, keepdims=True) + 1e-10)
+
         
         # Train logistic regression with optimized parameters
         print(f"Training logistic regression... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
@@ -211,6 +219,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval_name", type=str, required=True, help="eval_name name (e.g., 'rms')")
     parser.add_argument("--folds", type=int, default=5, help="Number of cross-validation folds")
     parser.add_argument("--spectrogram", type=int, default=0, help="Whether to compute spectrogram")
+    parser.add_argument("--spectrogram_normalize", type=int, default=0, help="Whether to normalize spectrogram")
     
     args = parser.parse_args()
     
@@ -219,5 +228,6 @@ if __name__ == "__main__":
         trial_id=args.trial,
         eval_name=args.eval_name,
         k_folds=args.folds,
-        spectrogram=(args.spectrogram==1)
+        spectrogram=(args.spectrogram==1),
+        spectrogram_normalize=(args.spectrogram_normalize==1)
     )

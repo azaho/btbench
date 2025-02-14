@@ -47,4 +47,4 @@ EVAL_NAME=${eval_names[$EVAL_IDX]}
 
 echo "Running eval for subject $SUBJECT_ID, trial $TRIAL_ID, eval $EVAL_NAME"
 # Add the -u flag to Python to force unbuffered output
-python -u eval_single_run.py --subject $SUBJECT_ID --trial $TRIAL_ID --eval_name $EVAL_NAME --folds 5
+python -u eval_single_run.py --subject $SUBJECT_ID --trial $TRIAL_ID --eval_name $EVAL_NAME --folds 5 # --spectrogram 1 --spectrogram_normalize 1 # add this for using spectrogram

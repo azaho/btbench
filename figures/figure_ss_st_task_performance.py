@@ -1,3 +1,6 @@
+import os
+os.chdir('..') # go back to the root directory
+
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -5,7 +8,7 @@ import json
 import os
 import glob
 import matplotlib.font_manager as fm
-font_path = 'font_arial.ttf'
+font_path = 'figures/font_arial.ttf'
 fm.fontManager.addfont(font_path)
 plt.rcParams['font.family'] = 'Arial'
 plt.rcParams.update({'font.size': 12})

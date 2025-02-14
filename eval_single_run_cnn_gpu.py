@@ -14,6 +14,7 @@ from datetime import datetime
 import gc
 import psutil
 
+
 def compute_spectrogram(data, fs=2048, max_freq=2000):
     """Compute spectrogram for a single trial of data.
     

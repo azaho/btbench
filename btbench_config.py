@@ -5,10 +5,8 @@ ROOT_DIR = "braintreebank" # Root directory for the braintreebank data
 SAVE_SUBJECT_TRIAL_DF_DIR = "btbench_subject_trial_df"
 SAMPLING_RATE = 2048 # Sampling rate
 
-
 N_PER_SEG = 256
 SPECTROGRAM_DIMENSIONALITY = 128 # number of frequency bins in the spectrogram
-
 
 START_NEURAL_DATA_BEFORE_WORD_ONSET = 0.5 # in seconds
 END_NEURAL_DATA_AFTER_WORD_ONSET = 2 # in seconds
