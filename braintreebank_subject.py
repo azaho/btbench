@@ -13,7 +13,7 @@ class Subject:
         This class is used to load the neural data for a given subject and trial.
         It also contains methods to get the data for a given electrode and trial, and to get the spectrogram for a given electrode and trial.
     """
-    def __init__(self, subject_id, sampling_rate=SAMPLING_RATE, allow_corrupted=False, cache=True):
+    def __init__(self, subject_id, sampling_rate=SAMPLING_RATE, allow_corrupted=True, cache=False):
         self.subject_id = subject_id
         self.sampling_rate = sampling_rate
         self.localization_data = self._load_localization_data()
