@@ -130,8 +130,8 @@ class BrainTreebankSubject:
             self.neural_data_cache = {}
             self.h5_files = {}
         else:
-            del self.neural_data_cache[trial_id]
-            del self.h5_files[trial_id]
+            if trial_id in self.neural_data_cache: del self.neural_data_cache[trial_id]
+            if trial_id in self.h5_files: del self.h5_files[trial_id]
     def open_neural_data_file(self, trial_id):
         assert not self.cache, "Cache is enabled; Use cache_neural_data() instead."
         if trial_id in self.h5_files: return
