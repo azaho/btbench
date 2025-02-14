@@ -11,10 +11,12 @@ BT-bench enables systematic evaluation of computational models on multimodal neu
 - Multimodal features (speaker identification)
 
 The benchmark includes defined train/test splits for assessing generalization:
-- Within-subject, within-session
-- Within-subject, across-session  
-- Across-subject, within-session
-- Across-subject, across-session
+| Train/Test Split | Description |
+|-----------------|-------------|
+| SS-ST | Same Subject - Same Trial |
+| SS-DT | Same Subject - Different Trial | 
+| DS-ST | Different Subject - Same Trial |
+| DS-DT | Different Subject - Different Trial |
 
 ## Getting Started
 
