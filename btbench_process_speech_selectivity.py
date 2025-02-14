@@ -9,7 +9,7 @@ from scipy import stats
 
 # all possible pairs of (subject_id, trial_id)
 all_subject_trials = [(1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (3, 0), (3, 1), (3, 2), (4, 0), (4, 1), (4, 2), (5, 0), (6, 0), (6, 1), (6, 4), (7, 0), (7, 1), (8, 0), (9, 0), (10, 0), (10, 1)]
-def process_subject(subject_id, save_dir="btbench_speech_selectivity", verbose=True):
+def process_subject(subject_id, save_dir=SAVE_SPEECH_SELECTIVITY_DATA_DIR, verbose=True):
     """Process speech selectivity for a given subject.
 
     This function analyzes neural data to identify electrodes that show selective responses 
