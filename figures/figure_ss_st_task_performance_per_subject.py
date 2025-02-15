@@ -108,19 +108,14 @@ def create_performance_figure():
                                 subject_averages[subject_id] = []
                             subject_averages[subject_id].append(value)
                     
-                    # Calculate mean for each subject
-                    subject_means = [np.mean(trials) for trials in subject_averages.values()]
-                    
-                    # Calculate overall mean and SEM across subjects
+                    # Store individual subject means
                     performance_data[task][model] = {
-                        'mean': np.nanmean(subject_means),
-                        'sem': np.nanstd(subject_means) / np.sqrt(len(subject_means)) if len(subject_means) > 0 else 0
+                        'subject_means': {subj: np.mean(trials) for subj, trials in subject_averages.items()}
                     }
                 else:
                     # Use placeholder data if no files found
                     performance_data[task][model] = {
-                        'mean': 0,
-                        'sem': 0
+                        'subject_means': {}
                     }
 
     # Create figure with 4x5 grid - reduced size
@@ -141,26 +136,38 @@ def create_performance_figure():
     # Model color palette using viridis
     model_colors = sns.color_palette("viridis", 2)
 
-    # Bar width
+    # Bar width and spacing
     bar_width = 0.2
     
-    # Calculate overall performance for each model
-    overall_performance = {}
-    for model in models:
-        means = [performance_data[task][model]['mean'] for task in task_list.keys()]
-        sems = [performance_data[task][model]['sem'] for task in task_list.keys()]
-        overall_performance[model] = {
-            'mean': np.nanmean(means),
-            'sem': np.sqrt(np.sum(np.array(sems)**2)) / len(sems)  # Combined SEM
-        }
+    # Calculate overall performance for each subject and model
+    overall_performance = {model: {} for model in models}
+    all_subjects = set()
+    
+    for task in task_list.keys():
+        for model in models:
+            for subject, value in performance_data[task][model]['subject_means'].items():
+                all_subjects.add(subject)
+                if subject not in overall_performance[model]:
+                    overall_performance[model][subject] = []
+                overall_performance[model][subject].append(value)
     
     # Plot overall performance in first axis
     first_ax = axs_flat[0]
     for i, model in enumerate(models):
-        perf = overall_performance[model]
-        first_ax.bar(i * bar_width, perf['mean'], bar_width,
-                    yerr=perf['sem'],
+        subject_means = [np.nanmean(overall_performance[model][subject]) 
+                        for subject in all_subjects]
+        
+        # Plot individual subject points
+        x_jitter = np.random.normal(i * bar_width, 0.02, len(subject_means))
+        first_ax.scatter(x_jitter, subject_means, color=model_colors[i], alpha=0.5, s=20)
+        
+        # Plot mean and SEM
+        mean = np.nanmean(subject_means)
+        sem = np.nanstd(subject_means) / np.sqrt(len(subject_means))
+        first_ax.bar(i * bar_width, mean, bar_width,
+                    yerr=sem,
                     color=model_colors[i],
+                    alpha=0.3,
                     capsize=6)
     
     first_ax.set_title('Overall', fontsize=12, pad=10, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.5'))
@@ -182,13 +189,22 @@ def create_performance_figure():
     for task, chance_level in task_list.items():
         ax = axs_flat[plot_idx]
         
-        # Plot bars for each model
-        x = np.arange(len(models))
+        # Plot bars and points for each model
         for i, model in enumerate(models):
-            perf = performance_data[task][model]
-            ax.bar(i * bar_width, perf['mean'], bar_width,
-                    yerr=perf['sem'], 
+            subject_means = list(performance_data[task][model]['subject_means'].values())
+            
+            # Plot individual subject points
+            if subject_means:
+                x_jitter = np.random.normal(i * bar_width, 0.02, len(subject_means))
+                ax.scatter(x_jitter, subject_means, color=model_colors[i], alpha=0.5, s=20)
+            
+            # Plot mean and SEM
+            mean = np.nanmean(subject_means) if subject_means else 0
+            sem = np.nanstd(subject_means) / np.sqrt(len(subject_means)) if subject_means else 0
+            ax.bar(i * bar_width, mean, bar_width,
+                    yerr=sem,
                     color=model_colors[i],
+                    alpha=0.3,
                     capsize=6)
         
         # Customize plot
@@ -232,7 +248,7 @@ def create_performance_figure():
     plt.tight_layout(rect=[0, 0.1, 1, 1], w_pad=0.4)
     
     # Save figure
-    plt.savefig('figures/ss_st_task_performance.pdf', dpi=300, bbox_inches='tight')
+    plt.savefig('figures/ss_st_task_performance_per_subject.pdf', dpi=300, bbox_inches='tight')
     plt.close()
 
 if __name__ == "__main__":
