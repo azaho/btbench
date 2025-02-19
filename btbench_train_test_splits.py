@@ -19,11 +19,11 @@ _all_subject_trials = [
 ]
 
 
-def generate_splits_DS_DT(all_subjects, test_subject_id, test_trial_id, eval_name, dtype=torch.float32):
-    """Generate train/test splits for Different Subject Different Trial (DS-DT) evaluation.
+def generate_splits_DS_DM(all_subjects, test_subject_id, test_trial_id, eval_name, dtype=torch.float32):
+    """Generate train/test splits for Different Subject Different Movie (DS-DM) evaluation.
     
-    This function creates train/test splits by using one subject and trial as the test set,
-    and using all other subjects and trials (except the test trial) as the training set.
+    This function creates train/test splits by using one subject and movie as the test set,
+    and using all other subjects and movies (except the test movie) as the training set.
     This evaluates generalization across both subjects and movie content.
 
     Args:
@@ -50,12 +50,12 @@ def generate_splits_DS_DT(all_subjects, test_subject_id, test_trial_id, eval_nam
     return train_dataset, test_dataset
 
 
-def generate_splits_DS_ST(all_subjects, test_subject_id, test_trial_id, eval_name, dtype=torch.float32):
-    """Generate train/test splits for Different Subject Same Trial (DS-ST) evaluation.
+def generate_splits_DS_SM(all_subjects, test_subject_id, test_trial_id, eval_name, dtype=torch.float32):
+    """Generate train/test splits for Different Subject Same Movie (DS-SM) evaluation.
     
-    This function creates train/test splits by using one subject and trial as the test set,
-    and using the same trial from all other subjects as the training set. This evaluates
-    generalization across subjects while controlling for the trial/movie content.
+    This function creates train/test splits by using one subject and movie as the test set,
+    and using the same movie from all other subjects as the training set. This evaluates
+    generalization across subjects while controlling for the movie content.
 
     Args:
         all_subjects (dict): Dictionary mapping subject IDs to Subject objects
@@ -85,18 +85,17 @@ def generate_splits_DS_ST(all_subjects, test_subject_id, test_trial_id, eval_nam
     return train_dataset, test_dataset
 
 
-def generate_splits_SS_DT(test_subject, test_trial_id, eval_name, dtype=torch.float32):
-    """Generate train/test splits for Single Subject Different Trials (SS-DT) evaluation.
+def generate_splits_SS_DM(test_subject, test_trial_id, eval_name, dtype=torch.float32):
+    """Generate train/test splits for Single Subject Different Movies (SS-DM) evaluation.
     
-    This function creates train/test splits by using one trial as the test set and all other
-    trials from the same subject as the training set. Unlike SS-ST, this does not perform
-    k-fold cross validation since trials are already naturally separated.
+    This function creates train/test splits by using one movie as the test set and all other
+    movies from the same subject as the training set. Unlike SS-SM, this does not perform
+    k-fold cross validation since movies are already naturally separated.
 
     Args:
         test_subject (Subject): Subject object containing brain recording data
         test_trial_id (int): ID of the trial/movie to use as test set
         eval_name (str): Name of the evaluation metric to use (e.g. "rms")
-        k_folds (int, optional): Not used in this function but kept for API consistency. Defaults to 5.
         dtype (torch.dtype, optional): Data type for tensors. Defaults to torch.float32.
 
     Returns:
@@ -134,10 +133,10 @@ def generate_splits_SS_DT(test_subject, test_trial_id, eval_name, dtype=torch.fl
     return train_dataset, test_dataset
 
 
-def generate_splits_SS_ST(test_subject, test_trial_id, eval_name, add_other_trials=False, k_folds=5, dtype=torch.float32, gap_length=None):
-    """Generate train/test splits for Single Subject Single Trial (SS-ST) evaluation.
+def generate_splits_SS_SM(test_subject, test_trial_id, eval_name, add_other_trials=False, k_folds=5, dtype=torch.float32, gap_length=None):
+    """Generate train/test splits for Single Subject Single Movie (SS-SM) evaluation.
     
-    This function performs k-fold cross validation on data from a single subject and trial.
+    This function performs k-fold cross validation on data from a single subject and movie.
     If gap_length is specified and not None, it ensures temporal gaps between train and test sets to avoid
     temporal correlation in the data. For example, if gap_length=300, there will be at least
     300 seconds between any training and test samples. If gap_length is None, no temporal gap
@@ -147,7 +146,7 @@ def generate_splits_SS_ST(test_subject, test_trial_id, eval_name, add_other_tria
         test_subject (Subject): Subject object containing brain recording data
         test_trial_id (int): ID of the trial/movie to use
         eval_name (str): Name of the evaluation metric to use (e.g. "rms", "word_gap", "pitch", "delta_volume")
-        add_other_trials (bool, optional): Whether to add other trials from the same subject to the training set. Defaults to False.
+        add_other_trials (bool, optional): Whether to add other movies from the same subject to the training set. Defaults to False.
         k_folds (int, optional): Number of folds for cross validation. Defaults to 5.
         dtype (torch.dtype, optional): Data type for tensors. Defaults to torch.float32.
         gap_length (int, optional): Minimum temporal gap in seconds between train and test sets. If None, no gap is enforced. Defaults to None.
@@ -205,22 +204,22 @@ if __name__ == "__main__":
     test_subject_id, test_trial_id = 3, 0
     all_subjects = {subject_id: Subject(subject_id, cache=False) for subject_id in range(1, 11)}
 
-    print("= LOADING DATASETS = DS-DT (Different Subject Different Trial)")
-    train_datasets, test_datasets = generate_splits_DS_DT(all_subjects, test_subject_id, test_trial_id, eval_name)
+    print("= LOADING DATASETS = DS-DM (Different Subject Different Movie)")
+    train_datasets, test_datasets = generate_splits_DS_DM(all_subjects, test_subject_id, test_trial_id, eval_name)
     print(train_datasets)
     print(test_datasets)
 
-    print("= LOADING DATASETS = DS-ST (Different Subject Same Trial)")
-    train_datasets, test_datasets = generate_splits_DS_ST(all_subjects, test_subject_id, test_trial_id, eval_name)
+    print("= LOADING DATASETS = DS-SM (Different Subject Same Movie)")
+    train_datasets, test_datasets = generate_splits_DS_SM(all_subjects, test_subject_id, test_trial_id, eval_name)
     print(train_datasets)
     print(test_datasets)
 
-    print("= LOADING DATASETS = SS-DT (Single Subject Different Trial)")
-    train_datasets, test_datasets = generate_splits_SS_DT(all_subjects[test_subject_id], test_trial_id, eval_name)
+    print("= LOADING DATASETS = SS-DM (Single Subject Different Movie)")
+    train_datasets, test_datasets = generate_splits_SS_DM(all_subjects[test_subject_id], test_trial_id, eval_name)
     print(train_datasets)
     print(test_datasets)
 
-    print("= LOADING DATASETS = SS-ST (Single Subject Same Trial)")
-    train_datasets, test_datasets = generate_splits_SS_ST(all_subjects[test_subject_id], test_trial_id, eval_name)
+    print("= LOADING DATASETS = SS-SM (Single Subject Same Movie)")
+    train_datasets, test_datasets = generate_splits_SS_SM(all_subjects[test_subject_id], test_trial_id, eval_name)
     print(train_datasets)
     print(test_datasets)

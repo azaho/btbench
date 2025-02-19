@@ -2,9 +2,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import pandas as pd
-import json
-import glob
-import random
+import os
 from btbench_config import *
 from braintreebank_subject import Subject
 
@@ -155,15 +153,17 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
             self.class_labels = self.class_labels[self.balanced_indices]
             self.n_samples = len(self.balanced_indices)
 
+    def _get_neural_data(self, window_from, window_to):
+        input = self.subject.get_all_electrode_data(self.trial_id, window_from=window_from, window_to=window_to)
+        return input.to(dtype=self.dtype)
+
     def _simple_float_variable__getitem__(self, idx):
         word_index = self.extreme_indices[idx]
         row = self.all_words_df.iloc[word_index]
         est_idx = int(row['est_idx']) - int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE)
         est_end_idx = int(row['est_idx']) + int(END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE)
-
-        input = self.subject.get_all_electrode_data(self.trial_id, window_from=est_idx, window_to=est_end_idx)
-        input = torch.from_numpy(input).to(dtype=self.dtype)
-        return input, self.extreme_labels[idx]
+        input = self._get_neural_data(est_idx, est_end_idx)
+        return input, self.extreme_labels[idx].item()
 
     def _onset_speech__getitem__(self, idx):
         if idx % 2 == 0: # even indices are positive samples
@@ -171,16 +171,14 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
             row = self.all_words_df.iloc[word_index]
             est_idx = int(row['est_idx']) - int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE)
             est_end_idx = int(row['est_idx']) + int(END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE)
-            input = self.subject.get_all_electrode_data(self.trial_id, window_from=est_idx, window_to=est_end_idx)
-            input = torch.from_numpy(input).to(dtype=self.dtype)
+            input = self._get_neural_data(est_idx, est_end_idx)
             return input, 1
         else: # odd indices are negative samples
             item_index = self.negative_indices[idx//2]
             row = self.nonverbal_df.iloc[item_index]
             est_idx = int(row['est_idx'])
             est_end_idx = int(row['est_end_idx']) # == est_idx + NEURAL_DATA_NONVERBAL_WINDOW_SIZE * SAMPLING_RATE
-            input = self.subject.get_all_electrode_data(self.trial_id, window_from=est_idx, window_to=est_end_idx)
-            input = torch.from_numpy(input).to(dtype=self.dtype)
+            input = self._get_neural_data(est_idx, est_end_idx)
             return input, 0
         
     def _classification__getitem__(self, idx):
@@ -188,9 +186,8 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
         row = self.all_words_df.iloc[word_index]
         est_idx = int(row['est_idx']) - int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE)
         est_end_idx = int(row['est_idx']) + int(END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE)
-        input = self.subject.get_all_electrode_data(self.trial_id, window_from=est_idx, window_to=est_end_idx)
-        input = torch.from_numpy(input).to(dtype=self.dtype)
-        return input, self.class_labels[idx]
+        input = self._get_neural_data(est_idx, est_end_idx)
+        return input, self.class_labels[idx].item()
         
         
     def __len__(self):

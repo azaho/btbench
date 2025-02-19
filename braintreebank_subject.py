@@ -3,6 +3,7 @@ import os
 import json
 import pandas as pd
 import numpy as np
+import torch
 
 from btbench_config import *
 
@@ -11,7 +12,7 @@ class BrainTreebankSubject:
         This class is used to load the neural data for a given subject and trial.
         It also contains methods to get the data for a given electrode and trial, and to get the spectrogram for a given electrode and trial.
     """
-    def __init__(self, subject_id, allow_corrupted=True, cache=False, dtype=np.float32):
+    def __init__(self, subject_id, allow_corrupted=True, cache=False, dtype=torch.float32):
         self.subject_id = subject_id
         self.subject_identifier = f'btbank{subject_id}'
         self.allow_corrupted = allow_corrupted
@@ -26,7 +27,7 @@ class BrainTreebankSubject:
         self.electrode_ids = {e:i for i, e in enumerate(self.electrode_labels)}
 
         self.electrode_data_length = {}
-        self.neural_data_cache = {} # structure: {trial_id: NumPy Array of shape (n_electrodes, n_samples)}
+        self.neural_data_cache = {} # structure: {trial_id: torch.Tensor of shape (n_electrodes, n_samples)}
         self.h5_files = {} # structure: {trial_id: h5py.File}
 
         # For downstream Laplacian rereferencing
@@ -107,23 +108,23 @@ class BrainTreebankSubject:
         with h5py.File(neural_data_file, 'r', locking=False) as f:
             # Get data length first
             self.electrode_data_length[trial_id] = f['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0]
-            # Pre-allocate array with specific dtype to reduce memory
-            self.neural_data_cache[trial_id] = np.zeros((len(self.electrode_labels), 
+            # Pre-allocate tensor with specific dtype
+            self.neural_data_cache[trial_id] = torch.zeros((len(self.electrode_labels), 
                                                         self.electrode_data_length[trial_id]), 
                                                         dtype=self.dtype)
             # Load data
             for electrode_label, electrode_id in self.electrode_ids.items():
                 neural_data_key = self.h5_neural_data_keys[electrode_label]
-                self.neural_data_cache[trial_id][electrode_id] = f['data'][neural_data_key][:].astype(self.dtype)
+                self.neural_data_cache[trial_id][electrode_id] = torch.from_numpy(f['data'][neural_data_key][:]).to(self.dtype)
 
     def _calculate_laplacian_rereferencing_addon(self, trial_id):
         assert trial_id in self.neural_data_cache, "Trial data must be cached before Laplacian rereferencing can be applied."
         neural_data_cache = self.neural_data_cache[trial_id]
-        neighbors_data = np.zeros((len(self.electrode_labels), neural_data_cache.shape[1]))
+        neighbors_data = torch.zeros((len(self.electrode_labels), neural_data_cache.shape[1]), dtype=self.dtype)
         for electrode_label, electrode_id in self.electrode_ids.items():
             assert electrode_label in self.electrode_neighbors, f"Neighbor electrodes for electrode {electrode_label} not found in electrode_neighbors. A mistake upstream must have happened."
             neighbors = self.electrode_neighbors[electrode_label]
-            neighbors_data[electrode_id] = np.mean([neural_data_cache[self.electrode_ids[n]][:] for n in neighbors], axis=0)
+            neighbors_data[electrode_id] = torch.mean(torch.stack([neural_data_cache[self.electrode_ids[n]][:] for n in neighbors]), dim=0)
         return neighbors_data
     def clear_neural_data_cache(self, trial_id=None):
         if trial_id is None:
@@ -146,14 +147,14 @@ class BrainTreebankSubject:
         """
             Get the coordinates of the electrodes for this subject
             Returns:
-                coordinates: (n_electrodes, 3) array of coordinates (L, I, P) without any preprocessing of the coordinates
+                coordinates: (n_electrodes, 3) tensor of coordinates (L, I, P) without any preprocessing of the coordinates
                 All coordinates are in between 50mm and 200mm for this dataset (check braintreebank_utils.ipynb for statistics)
         """
-        # Create array of coordinates in same order as electrode_labels
-        coordinates = np.zeros((len(self.electrode_labels), 3))
+        # Create tensor of coordinates in same order as electrode_labels
+        coordinates = torch.zeros((len(self.electrode_labels), 3), dtype=self.dtype)
         for i, label in enumerate(self.electrode_labels):
             row = self.get_electrode_metadata(label)
-            coordinates[i] = [row['L'], row['I'], row['P']]
+            coordinates[i] = torch.tensor([row['L'], row['I'], row['P']], dtype=self.dtype)
         return coordinates
     def get_electrode_metadata(self, electrode_label):
         """
@@ -172,11 +173,13 @@ class BrainTreebankSubject:
         if self.cache:
             if trial_id not in self.neural_data_cache: self.cache_neural_data(trial_id)
             electrode_id = self.electrode_ids[electrode_label]
-            return self.neural_data_cache[trial_id][electrode_id][window_from:window_to]
+            data = self.neural_data_cache[trial_id][electrode_id][window_from:window_to]
+            return data
         else:
             if trial_id not in self.h5_files: self.open_neural_data_file(trial_id)
             neural_data_key = self.h5_neural_data_keys[electrode_label]
-            return self.h5_files[trial_id]['data'][neural_data_key][window_from:window_to].astype(self.dtype)
+            data = torch.from_numpy(self.h5_files[trial_id]['data'][neural_data_key][window_from:window_to]).to(self.dtype)
+            return data
 
     def get_all_electrode_data(self, trial_id, window_from=None, window_to=None):
         if trial_id not in self.electrode_data_length: self.load_neural_data(trial_id)
@@ -185,18 +188,33 @@ class BrainTreebankSubject:
         if self.cache: 
             return self.neural_data_cache[trial_id][:, window_from:window_to]
         else:
-            all_electrode_data = np.zeros((len(self.electrode_labels), window_to-window_from), dtype=self.dtype)
+            all_electrode_data = torch.zeros((len(self.electrode_labels), window_to-window_from), dtype=self.dtype)
             for electrode_label, electrode_id in self.electrode_ids.items():
                 all_electrode_data[electrode_id] = self.get_electrode_data(electrode_label, trial_id, window_from=window_from, window_to=window_to)
             return all_electrode_data
+        
+
+    # XXX decide whether we need this
+    # def calculate_normalizing_params_spectrogram(self, trial_id, sample_timebin_size, device, window_to=None):
+    #     """
+    #         Calculate the normalizing params for the spectrograms for a given trial, per frequency bin.
+    #     """
+    #     all_electrode_data = self.get_all_electrode_data(trial_id, window_to=window_to)
+    #     n_timebins = all_electrode_data.shape[1] // sample_timebin_size
+    #     all_electrode_data = all_electrode_data[:, :n_timebins*sample_timebin_size].reshape(len(self.electrode_labels), n_timebins, sample_timebin_size)
+    #     all_electrode_data = all_electrode_data.to(device, dtype=torch.float32)
+
+    #     spectrogram = torch.fft.fft(all_electrode_data, dim=-1)
+    #     spectrogram = torch.abs(spectrogram)
+
+    #     return spectrogram.mean(dim=0), spectrogram.std(dim=0)
 
 
 if __name__ == "__main__":
     # This code checks the memory usage of the Subject class for a given trial.
     # Subject 3 trial 0 weights aeound 3.5GB on the disk, which is achieved when using bfloat16 dtype.
-    # When using np.float32, the numpy array weighs around 6-7GB.
+    # When using torch.float32, the tensor weighs around 6-7GB.
     import psutil
-    from ml_dtypes import bfloat16
     import sys
     process = psutil.Process()
 
@@ -206,21 +224,21 @@ if __name__ == "__main__":
 
     print_memory_usage("Initial RAM usage")
     
-    subject = BrainTreebankSubject(3, cache=True, dtype=bfloat16)
+    subject = BrainTreebankSubject(3, cache=True, dtype=torch.bfloat16)
     print_memory_usage("After creating Subject")
     
     # Print size of major attributes
     print("\nSize of major attributes:")
     for attr_name, attr_value in subject.__dict__.items():
-        if isinstance(attr_value, (dict, list, np.ndarray)):
+        if isinstance(attr_value, (dict, list, torch.Tensor)):
             size_mb = sys.getsizeof(attr_value) / 1024 / 1024
             if isinstance(attr_value, dict):
                 # For dictionaries, also check values
                 for v in attr_value.values():
-                    if isinstance(v, np.ndarray):
-                        size_mb += v.nbytes / 1024 / 1024
-            elif isinstance(attr_value, np.ndarray):
-                size_mb = attr_value.nbytes / 1024 / 1024
+                    if isinstance(v, torch.Tensor):
+                        size_mb += v.element_size() * v.nelement() / 1024 / 1024
+            elif isinstance(attr_value, torch.Tensor):
+                size_mb = attr_value.element_size() * attr_value.nelement() / 1024 / 1024
             print(f"{attr_name}: {size_mb:.2f} MB")
     
     subject.load_neural_data(0)
@@ -231,11 +249,11 @@ if __name__ == "__main__":
     
     # Print shape and memory info of the cached data
     if subject.neural_data_cache:
-        for trial_id, array in subject.neural_data_cache.items():
+        for trial_id, tensor in subject.neural_data_cache.items():
             print(f"\nTrial {trial_id} cache info:")
-            print(f"Shape: {array.shape}")
-            print(f"Dtype: {array.dtype}")
-            print(f"Memory usage: {array.nbytes / 1024 / 1024:.2f} MB")
+            print(f"Shape: {tensor.shape}")
+            print(f"Dtype: {tensor.dtype}")
+            print(f"Memory usage: {tensor.element_size() * tensor.nelement() / 1024 / 1024:.2f} MB")
 
     import gc
     gc.collect()

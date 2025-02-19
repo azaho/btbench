@@ -13,10 +13,10 @@ BT-bench enables systematic evaluation of computational models on multimodal neu
 The benchmark includes defined train/test splits for assessing generalization:
 | Train/Test Split | Description |
 |-----------------|-------------|
-| SS-ST | Same Subject - Same Trial |
-| SS-DT | Same Subject - Different Trial | 
-| DS-ST | Different Subject - Same Trial |
-| DS-DT | Different Subject - Different Trial |
+| SS-SM | Same Subject - Same Movie |
+| SS-DM | Same Subject - Different Movie | 
+| DS-SM | Different Subject - Same Movie |
+| DS-DM | Different Subject - Different Movie |
 
 ## Getting Started
 
@@ -59,7 +59,7 @@ object in code block 2.
 - `btbench_process_subject_trial_df.py` - script for processing the subject trial metadata
 - `btbench_process_speech_selectivity.py` - script for processing the electrode speech selectivity data
 - `btbench_datasets.py` - script that defines the BrainTreebankSubjectTrialBenchmarkDataset class, which contains the features/labels for a single subject and trial
-- `btbench_train_test_splits.py` - script that defines the train/test splits for the benchmark, for each of the 4 train/test split types (SS-ST, SS-DT, DS-ST, DS-DT)
+- `btbench_train_test_splits.py` - script that defines the train/test splits for the benchmark, for each of the 4 train/test split types (SS-SM, SS-DM, DS-SM, DS-DM)
 - `eval_single_run.py` - script for training and evaluating a simple linear model (optionally, after taking a spectrogram of the data) on a given subject and trial, and task
 - `braintreebank/` - directory for the braintreebank dataset
 - `braintreebank_download_extract.py` - script for downloading and extracting the braintreebank dataset

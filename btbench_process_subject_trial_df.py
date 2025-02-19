@@ -1,5 +1,4 @@
 # Part of the code is adapted from https://braintreebank.dev/, file "quickstart.ipynb"
-import h5py
 import os
 import json
 import pandas as pd

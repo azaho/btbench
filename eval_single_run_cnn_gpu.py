@@ -4,7 +4,7 @@ import numpy as np
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.metrics import accuracy_score, classification_report
-from btbench_train_test_splits import generate_splits_SS_ST
+from btbench_train_test_splits import generate_splits_SS_SM
 from braintreebank_subject import Subject
 from scipy import signal
 from sklearn.metrics import roc_auc_score
@@ -92,7 +92,7 @@ def run_mlp_classification(subject_id, trial_id, eval_name, k_folds=5, spectrogr
     
     # Generate train/test splits
     print(f"Generating train/test splits for subject {subject_id}... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
-    train_datasets, test_datasets = generate_splits_SS_ST(
+    train_datasets, test_datasets = generate_splits_SS_SM(
         test_subject=subject,
         test_trial_id=trial_id,
         eval_name=eval_name,
