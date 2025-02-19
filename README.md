@@ -29,7 +29,7 @@ pip install --upgrade pip
 
 1. Install required packages:
 ```
-pip install beautifulsoup4 requests torch torchvision h5py pandas scipy numpy matplotlib seaborn wandb scikit-learn psutil
+pip install beautifulsoup4 requests torch torchvision h5py pandas scipy numpy matplotlib seaborn wandb scikit-learn psutil librosa
 ```
 
 2. Download and extract the braintreebank dataset (this step can be skipped if the dataset is already downloaded and extracted; it should be all extracted into the braintreebank/ directory):

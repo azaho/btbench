@@ -10,8 +10,6 @@ start_col, end_col, lbl_col = 'start', 'end', 'pos'
 trig_time_col, trig_idx_col, est_idx_col, est_end_idx_col = 'movie_time', 'index', 'est_idx', 'est_end_idx'
 word_time_col, word_text_col, is_onset_col, is_offset_col = 'word_time', 'text', 'is_onset', 'is_offset'
 def obtain_aligned_words_df(sub_id, trial_id, verbose=True, save_to_dir=None):
-    # Path to neural data h5 file
-    neural_data_file = os.path.join(ROOT_DIR, f'sub_{sub_id}_trial{trial_id:03}.h5')
     # Path to trigger times csv file
     trigger_times_file = os.path.join(ROOT_DIR, f'subject_timings/sub_{sub_id}_trial{trial_id:03}_timings.csv')
     # Path format to trial metadata json file

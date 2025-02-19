@@ -1,7 +1,7 @@
 # NOTE: Settings in this file have global effect on the code. All parts of the pipeline have to run with the same settings.
 # If you want to change a setting, you have to rerun all parts of the pipeline with the new setting. Otherwise, things will break.
 
-ROOT_DIR = "braintreebank" # Root directory for the braintreebank data
+ROOT_DIR = "../bfm_ic2/braintreebank" # Root directory for the braintreebank data
 SAVE_SUBJECT_TRIAL_DF_DIR = "subject_metadata"
 SAVE_SPEECH_SELECTIVITY_DATA_DIR = "speech_selectivity_data"
 SAMPLING_RATE = 2048 # Sampling rate

@@ -149,6 +149,6 @@ print("\nCompleted evaluation for all folds and time bins")
 
 # Save ROC AUC scores to files
 print("\nSaving results...")
-np.save(f"eval_results/per_bin_linear_voltage_{args.eval_name}_fold{args.fold}_train.npy", train_roc_scores)
-np.save(f"eval_results/per_bin_linear_voltage_{args.eval_name}_fold{args.fold}_test.npy", test_roc_scores)
+np.save(f"eval_results_ss_sm/per_bin_linear_voltage_{args.eval_name}_fold{args.fold}_train.npy", train_roc_scores)
+np.save(f"eval_results_ss_sm/per_bin_linear_voltage_{args.eval_name}_fold{args.fold}_test.npy", test_roc_scores)
 print("Results saved successfully")

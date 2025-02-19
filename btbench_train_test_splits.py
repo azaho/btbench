@@ -85,6 +85,41 @@ def generate_splits_DS_SM(all_subjects, test_subject_id, test_trial_id, eval_nam
     return train_dataset, test_dataset
 
 
+def generate_subject_trials_for_SS_DM():
+    """Generate list of all subject-trial pairs in the dataset that are valid for SS-DM evaluation.
+    (i.e. subjects that contain at least two trials)
+    
+    This function creates a list of tuples containing all valid subject-trial pairs
+    based on the available recordings in the BrainTreebank dataset. Each tuple contains
+    a subject ID and trial ID.
+
+    Returns:
+        list: List of tuples, where each tuple contains:
+            - subject_id (int): ID of the subject
+            - trial_id (int): ID of the trial/movie for that subject
+    """
+    _subject_trials = {
+        1: [0, 1, 2],
+        2: [0, 1, 2, 3, 4, 5, 6],
+        3: [0, 1, 2],
+        4: [0, 1, 2],
+        5: [0],
+        6: [0, 1, 4],
+        7: [0, 1],
+        8: [0],
+        9: [0],
+        10: [0, 1],
+    }
+    for key in _subject_trials:
+        if len(_subject_trials[key]) == 0:
+            del _subject_trials[key]
+    subject_trials = []
+    for key in _subject_trials:
+        for trial in _subject_trials[key]:
+            subject_trials.append((key, trial))
+    return subject_trials
+    
+
 def generate_splits_SS_DM(test_subject, test_trial_id, eval_name, dtype=torch.float32):
     """Generate train/test splits for Single Subject Different Movies (SS-DM) evaluation.
     
