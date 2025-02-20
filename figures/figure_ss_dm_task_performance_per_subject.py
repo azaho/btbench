@@ -74,7 +74,7 @@ def create_performance_figure():
         'face_num': 'Number of Faces',
     }
     # Define models
-    models = ['Linear (raw voltage)', 'Linear (spectrogram)']
+    models = ['linear (raw voltage)']*1 #, 'linear (spectrogram)']
 
     metric = 'AUROC' # 'Accuracy' or 'AUROC'
 
@@ -84,22 +84,24 @@ def create_performance_figure():
         for task in category:
             performance_data[task] = {}
             for model in models:
-                model_prefix = 'linear' if 'linear' in model.lower() else 'cnn'
-                spec_suffix = '_spectrogram' if 'spectrogram' in model.lower() else '_voltage'
+                model_prefix = 'linear' if 'linear' in model else 'cnn'
+                spec_suffix = '_spectrogram' if 'spectrogram' in model else '_voltage'
                 
                 # Find matching files for this task/model combination
-                pattern = f'eval_results_ss_sm/{model_prefix}{spec_suffix}_*_subject[0-9]*_trial?_{task}.json'
+                pattern = f'eval_results_ss_dm/{model_prefix}{spec_suffix}_*_subject[0-9]*_trial?_{task}.json'
                 files = glob.glob(pattern)
-                
+
+
                 # Check if all subject-trial combinations exist
-                subjects = [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 6, 6, 6, 7, 7, 8, 9, 10, 10]
-                trials = [0, 1, 2, 0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 0, 1, 2, 0, 0, 1, 4, 0, 1, 0, 0, 0, 1]
+                # Get list of subject-trial pairs from run_eval_single_run_ss_dm.sh
+                subjects = [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 6, 6, 6, 7, 7, 10, 10]
+                trials = [0, 1, 2, 0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 0, 1, 2, 0, 1, 4, 0, 1, 0, 1]
                 for subject_id, trial_id in zip(subjects, trials):
-                    expected_file = f'eval_results_ss_sm/{model_prefix}{spec_suffix}_*_subject{subject_id}_trial{trial_id}_{task}.json'
+                    expected_file = f'eval_results_ss_dm/{model_prefix}{spec_suffix}_*_subject{subject_id}_trial{trial_id}_{task}.json'
                     matching_files = glob.glob(expected_file)
                     if not matching_files:
                         print(f"Warning: Missing data for {model_prefix}{spec_suffix} model, subject {subject_id}, trial {trial_id}, task {task}")
-
+                
                 if files:
                     # First average within subjects across trials
                     subject_averages = {}
@@ -108,28 +110,23 @@ def create_performance_figure():
                             data = json.load(json_file)
                             subject_id = data['subject_id']
                             
-                            if metric == 'accuracy':
-                                value = data['mean_accuracy']
+                            if metric == 'Accuracy':
+                                value = data['accuracy']
                             else:
-                                value = np.nanmean([fold_result['auroc'] for fold_result in data['fold_results']])
+                                value = data['auroc']
                             
                             if subject_id not in subject_averages:
                                 subject_averages[subject_id] = []
                             subject_averages[subject_id].append(value)
                     
-                    # Calculate mean for each subject
-                    subject_means = [np.mean(trials) for trials in subject_averages.values()]
-                    
-                    # Calculate overall mean and SEM across subjects
+                    # Store individual subject means
                     performance_data[task][model] = {
-                        'mean': np.nanmean(subject_means),
-                        'sem': np.nanstd(subject_means) / np.sqrt(len(subject_means)) if len(subject_means) > 0 else 0
+                        'subject_means': {subj: np.mean(trials) for subj, trials in subject_averages.items()}
                     }
                 else:
                     # Use placeholder data if no files found
                     performance_data[task][model] = {
-                        'mean': 0,
-                        'sem': 0
+                        'subject_means': {}
                     }
 
     # Create figure with 4x5 grid - reduced size
@@ -150,30 +147,51 @@ def create_performance_figure():
     # Model color palette using viridis
     model_colors = sns.color_palette("viridis", 2)
 
-    # Bar width
+    # Bar width and spacing
     bar_width = 0.2
     
-    # Calculate overall performance for each model
-    overall_performance = {}
-    for model in models:
-        means = [performance_data[task][model]['mean'] for task in task_list.keys()]
-        sems = [performance_data[task][model]['sem'] for task in task_list.keys()]
-        overall_performance[model] = {
-            'mean': np.nanmean(means),
-            'sem': np.sqrt(np.sum(np.array(sems)**2)) / len(sems)  # Combined SEM
-        }
+    # Calculate overall performance for each subject and model
+    overall_performance = {model: {} for model in models}
+    all_subjects = set()
+    
+    for task in task_list.keys():
+        for model in models:
+            for subject, value in performance_data[task][model]['subject_means'].items():
+                all_subjects.add(subject)
+                if subject not in overall_performance[model]:
+                    overall_performance[model][subject] = []
+                overall_performance[model][subject].append(value)
     
     # Plot overall performance in first axis
     first_ax = axs_flat[0]
     for i, model in enumerate(models):
-        perf = overall_performance[model]
-        first_ax.bar(i * bar_width, perf['mean'], bar_width,
-                    yerr=perf['sem'],
+        # Ensure we have all 10 subjects by filling missing ones with NaN
+        all_subjects_sorted = sorted(all_subjects)
+        subject_means = []
+        for subject in all_subjects_sorted:
+            if subject in overall_performance[model]:
+                subject_means.append(np.nanmean(overall_performance[model][subject]))
+            else:
+                subject_means.append(np.nan)
+        
+        # Create evenly spaced x positions for all 10 subjects
+        x_positions = np.linspace(-bar_width/2, bar_width/2, len(all_subjects_sorted))
+        x_positions = x_positions + (i * bar_width)  # Offset for each model
+        
+        # Plot individual subject points
+        first_ax.scatter(x_positions, subject_means, color=model_colors[i], alpha=0.5, s=20)
+        
+        # Plot mean and SEM
+        mean = np.nanmean(subject_means)
+        sem = np.nanstd(subject_means) / np.sqrt(np.sum(~np.isnan(subject_means)))
+        first_ax.bar(i * bar_width, mean, bar_width,
+                    yerr=sem,
                     color=model_colors[i],
+                    alpha=0.3,
                     capsize=6)
     
     first_ax.set_title('Overall', fontsize=12, pad=10, bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.5'))
-    if metric == 'accuracy':
+    if metric == 'Accuracy':
         first_ax.set_ylim(0.2, 1.0)
     else:
         first_ax.set_ylim(0.45, .8)
@@ -191,18 +209,35 @@ def create_performance_figure():
     for task, chance_level in task_list.items():
         ax = axs_flat[plot_idx]
         
-        # Plot bars for each model
-        x = np.arange(len(models))
+        # Plot bars and points for each model
         for i, model in enumerate(models):
-            perf = performance_data[task][model]
-            ax.bar(i * bar_width, perf['mean'], bar_width,
-                    yerr=perf['sem'], 
+            # Ensure we have all 10 subjects by filling missing ones with NaN
+            subject_means = []
+            for subject in sorted(all_subjects):
+                if subject in performance_data[task][model]['subject_means']:
+                    subject_means.append(performance_data[task][model]['subject_means'][subject])
+                else:
+                    subject_means.append(np.nan)
+            
+            # Plot individual subject points
+            if any(~np.isnan(subject_means)):
+                # Create evenly spaced x positions for all 10 subjects
+                x_positions = np.linspace(-bar_width/2, bar_width/2, len(all_subjects))
+                x_positions = x_positions + (i * bar_width)  # Offset for each model
+                ax.scatter(x_positions, subject_means, color=model_colors[i], alpha=0.5, s=20)
+            
+            # Plot mean and SEM
+            mean = np.nanmean(subject_means)
+            sem = np.nanstd(subject_means) / np.sqrt(np.sum(~np.isnan(subject_means)))
+            ax.bar(i * bar_width, mean, bar_width,
+                    yerr=sem,
                     color=model_colors[i],
+                    alpha=0.3,
                     capsize=6)
         
         # Customize plot
         ax.set_title(task_name_mapping[task], fontsize=12, pad=10)
-        if metric == 'accuracy':
+        if metric == 'Accuracy':
             ax.set_ylim(0.2, 1.0)
         else:
             ax.set_ylim(0.45, .8)
@@ -241,7 +276,7 @@ def create_performance_figure():
     plt.tight_layout(rect=[0, 0.1, 1, 1], w_pad=0.4)
     
     # Save figure
-    plt.savefig('figures/ss_sm_task_performance.pdf', dpi=300, bbox_inches='tight')
+    plt.savefig('figures/ss_dm_task_performance_per_subject.pdf', dpi=300, bbox_inches='tight')
     plt.close()
 
 if __name__ == "__main__":
