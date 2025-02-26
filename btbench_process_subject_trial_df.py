@@ -29,6 +29,16 @@ def obtain_aligned_words_df(sub_id, trial_id, verbose=True, save_to_dir=None):
     words_df = words_df.drop(['word_diff', 'onset_diff'], axis=1) # remove those columns because they are unnecessary and cause excessive filtering with NaN values
     words_df = words_df.dropna().reset_index(drop=True)
 
+    # Add enhanced pitch columns if they exist
+    enhanced_pitch_words_df_file_format = os.path.join(f'enhanced_pitch_words_df/{movie_id}.csv')
+    if os.path.exists(enhanced_pitch_words_df_file_format):
+        enhanced_pitch_words_df = pd.read_csv(enhanced_pitch_words_df_file_format)
+        assert len(enhanced_pitch_words_df) == len(words_df), f"Enhanced pitch words df length {len(enhanced_pitch_words_df)} does not match words df length {len(words_df)}"
+        new_cols = [col for col in enhanced_pitch_words_df.columns if col not in words_df.columns and col != 'text']
+        print(f"Adding {len(new_cols)} new columns from the enhanced pitch df to the words df: {new_cols}")
+        for col in new_cols:
+            words_df[col] = enhanced_pitch_words_df[col].values
+
     # Vectorized sample index estimation
     def add_estimated_sample_index_vectorized(w_df, t_df):
         last_t = t_df[trig_time_col].iloc[-1]
@@ -113,7 +123,22 @@ def obtain_nonverbal_df(sub_id, trial_id, words_df, verbose=True, save_to_dir=No
 
 
 if __name__ == "__main__":
+    import argparse
+    
+    # Parse command line arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--subject', type=int, help='Subject ID (optional)')
+    parser.add_argument('--trial', type=int, help='Trial ID (optional)') 
+    args = parser.parse_args()
+
     all_subject_trials = [(1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (3, 0), (3, 1), (3, 2), (4, 0), (4, 1), (4, 2), (5, 0), (6, 0), (6, 1), (6, 4), (7, 0), (7, 1), (8, 0), (9, 0), (10, 0), (10, 1)]
-    for sub_id, trial_id in all_subject_trials:
+
+    # If subject and trial specified, only process that pair
+    if args.subject is not None and args.trial is not None:
+        subject_trials = [(args.subject, args.trial)]
+    else:
+        subject_trials = all_subject_trials
+
+    for sub_id, trial_id in subject_trials:
         words_df = obtain_aligned_words_df(sub_id, trial_id, save_to_dir=SAVE_SUBJECT_TRIAL_DF_DIR)
         nonverbal_df = obtain_nonverbal_df(sub_id, trial_id, words_df, save_to_dir=SAVE_SUBJECT_TRIAL_DF_DIR)

@@ -85,17 +85,17 @@ def create_performance_figure():
             performance_data[task] = {}
             for model in models:
                 model_prefix = 'linear' if 'linear' in model.lower() else 'cnn'
-                spec_suffix = '_spectrogram' if 'spectrogram' in model.lower() else '_voltage'
+                spec_suffix = '_spectrogram_normalized' if 'spectrogram' in model.lower() else '_voltage'
                 
                 # Find matching files for this task/model combination
-                pattern = f'eval_results_ss_sm/{model_prefix}{spec_suffix}_*_subject[0-9]*_trial?_{task}.json'
+                pattern = f'eval_results_ss_sm/{model_prefix}{spec_suffix}_*subject[0-9]*_trial?_{task}.json'
                 files = glob.glob(pattern)
                 
                 # Check if all subject-trial combinations exist
                 subjects = [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 6, 6, 6, 7, 7, 8, 9, 10, 10]
                 trials = [0, 1, 2, 0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 0, 1, 2, 0, 0, 1, 4, 0, 1, 0, 0, 0, 1]
                 for subject_id, trial_id in zip(subjects, trials):
-                    expected_file = f'eval_results_ss_sm/{model_prefix}{spec_suffix}_*_subject{subject_id}_trial{trial_id}_{task}.json'
+                    expected_file = f'eval_results_ss_sm/{model_prefix}{spec_suffix}_*subject{subject_id}_trial{trial_id}_{task}.json'
                     matching_files = glob.glob(expected_file)
                     if not matching_files:
                         print(f"Warning: Missing data for {model_prefix}{spec_suffix} model, subject {subject_id}, trial {trial_id}, task {task}")

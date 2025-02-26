@@ -13,7 +13,7 @@ from datetime import datetime
 import gc
 import psutil
 
-def compute_spectrogram(data, fs=2048, max_freq=2000):
+def compute_spectrogram(data, fs=2048, max_freq=2000, min_freq=0):
     """Compute spectrogram for a single trial of data.
     
     Args:
@@ -35,7 +35,7 @@ def compute_spectrogram(data, fs=2048, max_freq=2000):
         window='boxcar'
     )
     
-    return np.log10(Sxx[:, (f<max_freq) & (f>0)] + 1e-10)
+    return np.log10(Sxx[:, (f<=max_freq) & (f>=min_freq)] + 1e-5)
 
 def run_linear_classification(subject_id, trial_id, eval_name, spectrogram=False, spectrogram_normalize=False):
     """Run linear classification for a given subject, trial, and eval_name.
@@ -52,7 +52,7 @@ def run_linear_classification(subject_id, trial_id, eval_name, spectrogram=False
     output_dir = 'eval_results_ss_dm'
     # Check if any matching results files exist using glob
     import glob
-    results_pattern = os.path.join(output_dir, f'linear{suffix}_*_subject{subject_id}_trial{trial_id}_{eval_name}.json')
+    results_pattern = os.path.join(output_dir, f'linear{suffix}_*subject{subject_id}_trial{trial_id}_{eval_name}.json')
     matching_files = glob.glob(results_pattern)
     if matching_files:
         print(f"Results file already exists for this configuration. Skipping...")
@@ -60,7 +60,6 @@ def run_linear_classification(subject_id, trial_id, eval_name, spectrogram=False
     process = psutil.Process() # for tracking ram usage
 
     # Create output directory
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     os.makedirs(output_dir, exist_ok=True)
     
     # Load subject data
@@ -98,7 +97,9 @@ def run_linear_classification(subject_id, trial_id, eval_name, spectrogram=False
     y_train = np.array(y_train, dtype=int)
     print("Train dataset loaded")
     if spectrogram_normalize:
-        X_train = (X_train - X_train.mean(axis=0, keepdims=True)) / (X_train.std(axis=0, keepdims=True) + 1e-10)
+        train_means = X_train.mean(axis=0, keepdims=True)
+        train_stds = X_train.std(axis=0, keepdims=True) + 1e-5
+        X_train = (X_train - train_means) / train_stds
 
     # Convert test data to numpy arrays
     print(f"Processing test data... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
@@ -114,7 +115,7 @@ def run_linear_classification(subject_id, trial_id, eval_name, spectrogram=False
     y_test = np.array(y_test, dtype=int)
     print("Test dataset loaded")
     if spectrogram_normalize:
-        X_test = (X_test - X_test.mean(axis=0, keepdims=True)) / (X_test.std(axis=0, keepdims=True) + 1e-10)
+        X_test = (X_test - train_means) / train_stds
 
     # Train logistic regression with optimized parameters
     print(f"Training logistic regression... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
@@ -172,8 +173,7 @@ def run_linear_classification(subject_id, trial_id, eval_name, spectrogram=False
     print(classification_report(y_test, y_pred))
 
     # Save results to JSON
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results_file = os.path.join(output_dir, f'linear{suffix}_{timestamp}_subject{subject_id}_trial{trial_id}_{eval_name}.json')
+    results_file = os.path.join(output_dir, f'linear{suffix}_subject{subject_id}_trial{trial_id}_{eval_name}.json')
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=4)
     

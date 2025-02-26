@@ -7,7 +7,9 @@ __pycache__/
 braintreebank*/
 subject_metadata/
 speech_selectivity_data/
-eval_results/
+eval_results*/
+eval_results_ss_sm/
+eval_results_ss_dm/
 
 misc_Andrii/
 quickstart.ipynb

@@ -2,8 +2,8 @@
 #SBATCH --job-name=eval_single_run          # Name of the job
 #SBATCH --ntasks=1             # 8 tasks total
 #SBATCH --cpus-per-task=6    # Request 8 CPU cores per GPU
-#SBATCH --mem=64G
-#SBATCH -t 4:00:00         # total run time limit (HH:MM:SS) (increased to 24 hours)
+#SBATCH --mem=512G
+#SBATCH -t 12:00:00         # total run time limit (HH:MM:SS) (increased to 24 hours)
 #SBATCH --array=1-988      # 26 subject-trial pairs * 13 eval names = 338 total jobs
 #SBATCH --output r/%A_%a.out # STDOUT
 #SBATCH --error r/%A_%a.err # STDERR

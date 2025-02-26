@@ -12,7 +12,7 @@ class BrainTreebankSubject:
         This class is used to load the neural data for a given subject and trial.
         It also contains methods to get the data for a given electrode and trial, and to get the spectrogram for a given electrode and trial.
     """
-    def __init__(self, subject_id, allow_corrupted=True, cache=False, dtype=torch.float32):
+    def __init__(self, subject_id, allow_corrupted=False, cache=False, dtype=torch.float32):
         self.subject_id = subject_id
         self.subject_identifier = f'btbank{subject_id}'
         self.allow_corrupted = allow_corrupted

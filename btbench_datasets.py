@@ -16,6 +16,13 @@ single_float_variables_name_remapping = {
     "delta_pitch": "delta_pitch",
     "gpt2_surprisal": "gpt2_surprisal",
     "word_length": "word_length",
+    
+    "volume_v2_raw": "volume_v2_raw",
+    "pitch_v2_raw": "pitch_v2_raw",
+    "volume_v2_enhanced": "volume_v2_enhanced",
+    "pitch_v2_enhanced": "pitch_v2_enhanced",
+    "volume__reproduced": "volume__reproduced",
+    "pitch__reproduced": "pitch__reproduced"
 }
 four_way_cardinal_directions_name_remapping = {
     "global_flow_angle": "max_global_angle",

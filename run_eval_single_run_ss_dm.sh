@@ -2,9 +2,9 @@
 #SBATCH --job-name=eval_single_run          # Name of the job
 #SBATCH --ntasks=1             # 8 tasks total
 #SBATCH --cpus-per-task=6    # Request 8 CPU cores per GPU
-#SBATCH --mem=96G
-#SBATCH -t 12:00:00         # total run time limit (HH:MM:SS) (increased to 24 hours)
-#SBATCH --array=1-418      # 26 subject-trial pairs * 13 eval names = 338 total jobs
+#SBATCH --mem=128G
+#SBATCH -t 4:00:00         # total run time limit (HH:MM:SS) (increased to 24 hours)
+#SBATCH --array=1-836      # 26 subject-trial pairs * 13 eval names = 338 total jobs
 #SBATCH --output r/%A_%a.out # STDOUT
 #SBATCH --error r/%A_%a.err # STDERR
 #SBATCH -p use-everything
@@ -37,16 +37,22 @@ declare -a eval_names=(
     "word_part_speech"
     "speaker"
 )
+declare -a spectrogram_string=(
+    "--spectrogram 1"
+    ""
+)
 
 # Calculate indices for this task
-PAIR_IDX=$(( ($SLURM_ARRAY_TASK_ID-1) / 19 ))
-EVAL_IDX=$(( ($SLURM_ARRAY_TASK_ID-1) % 19 ))
+SPECTROGRAM_IDX=$(( ($SLURM_ARRAY_TASK_ID-1) % 2 ))
+PAIR_IDX=$(( ($SLURM_ARRAY_TASK_ID-1) / 2 / 19 ))
+EVAL_IDX=$(( ($SLURM_ARRAY_TASK_ID-1) / 2 % 19 ))
 
 # Get subject, trial and eval name for this task
 SUBJECT_ID=${subjects[$PAIR_IDX]}
 TRIAL_ID=${trials[$PAIR_IDX]} 
 EVAL_NAME=${eval_names[$EVAL_IDX]}
+SPECTROGRAM_STRING=${spectrogram_string[$SPECTROGRAM_IDX]}
 
 echo "Running eval for subject $SUBJECT_ID, trial $TRIAL_ID, eval $EVAL_NAME"
 # Add the -u flag to Python to force unbuffered output
-python -u eval_single_run_ss_dm.py --subject $SUBJECT_ID --trial $TRIAL_ID --eval_name $EVAL_NAME # --spectrogram 1 --spectrogram_normalize 1 # add this for using spectrogram
+python -u eval_single_run_ss_dm.py --subject $SUBJECT_ID --trial $TRIAL_ID --eval_name $EVAL_NAME $SPECTROGRAM_STRING # add this for using spectrogram

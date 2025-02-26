@@ -120,18 +120,19 @@ def generate_subject_trials_for_SS_DM():
     return subject_trials
     
 
-def generate_splits_SS_DM(test_subject, test_trial_id, eval_name, dtype=torch.float32):
+def generate_splits_SS_DM(test_subject, test_trial_id, eval_name, dtype=torch.float32, max_other_trials=3):
     """Generate train/test splits for Single Subject Different Movies (SS-DM) evaluation.
     
     This function creates train/test splits by using one movie as the test set and all other
-    movies from the same subject as the training set. Unlike SS-SM, this does not perform
-    k-fold cross validation since movies are already naturally separated.
+    movies from the same subject as the training set (trimmed at max_other_trials movies). 
+    Unlike SS-SM, this does not perform k-fold cross validation since movies are already naturally separated.
 
     Args:
         test_subject (Subject): Subject object containing brain recording data
         test_trial_id (int): ID of the trial/movie to use as test set
         eval_name (str): Name of the evaluation metric to use (e.g. "rms")
         dtype (torch.dtype, optional): Data type for tensors. Defaults to torch.float32.
+        max_other_trials (int, optional): Maximum number of other trials to include in the training set. Defaults to 2.
 
     Returns:
         tuple: A tuple containing:
@@ -155,7 +156,7 @@ def generate_splits_SS_DM(test_subject, test_trial_id, eval_name, dtype=torch.fl
     test_subject_id = test_subject.subject_id  # Change this to test different subjects
     if test_subject_id not in _subject_trials: raise ValueError(f"Subject {test_subject_id} not found in dataset.")
 
-    train_trials = [t for t in _subject_trials[test_subject_id] if t != test_trial_id]
+    train_trials = [t for t in _subject_trials[test_subject_id] if t != test_trial_id][:max_other_trials]
     if len(train_trials) == 0: raise ValueError(f"Subject {test_subject_id} has no training trials.")
 
     test_dataset = BrainTreebankSubjectTrialBenchmarkDataset(test_subject, test_trial_id, dtype=dtype, eval_name=eval_name)

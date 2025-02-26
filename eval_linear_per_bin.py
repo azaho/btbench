@@ -15,13 +15,29 @@ from btbench_datasets import BrainTreebankSubjectTrialBenchmarkDataset
 parser = argparse.ArgumentParser()
 parser.add_argument('--eval_name', type=str, default='onset', help='Evaluation name (e.g. onset, gpt2_surprisal)')
 parser.add_argument('--fold', type=int, choices=[1,2,3,4,5], required=True, help='Fold number (1-5)')
+parser.add_argument('--subject', type=int, required=True, help='Subject ID')
+parser.add_argument('--trial', type=int, required=True, help='Trial ID')
+
 args = parser.parse_args()
 
 # all possible pairs of (subject_id, trial_id)
 all_subject_trials = [(1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (3, 0), (3, 1), (3, 2), (4, 0), (4, 1), (4, 2), (5, 0), (6, 0), (6, 1), (6, 4), (7, 0), (7, 1), (8, 0), (9, 0), (10, 0), (10, 1)]
 
+print(f"Running evaluation for subject {args.subject}, trial {args.trial}, eval {args.eval_name}, fold {args.fold}")
+
+# Check if output files already exist
+output_files = [
+    f"eval_results_ss_sm/per_bin_linear_voltage_{args.eval_name}_subject{args.subject}_trial{args.trial}_fold{args.fold}_train.npy",
+    f"eval_results_ss_sm/per_bin_linear_voltage_{args.eval_name}_subject{args.subject}_trial{args.trial}_fold{args.fold}_test.npy"
+]
+for file in output_files:
+    if os.path.exists(file):
+        print(f"Output file {file} already exists. Skipping...")
+        exit(0)
+
+print("Loading the dataset...")
 # %%
-subject_id, trial_id = 3,0
+subject_id, trial_id = args.subject, args.trial
 subject = Subject(subject_id, cache=True) # use cache=True to load this trial's neural data into RAM, if you have enough memory!
 dataset = BrainTreebankSubjectTrialBenchmarkDataset(subject, trial_id, dtype=torch.float32, eval_name=args.eval_name)
 
@@ -134,11 +150,12 @@ for fold_idx, (train_idx, test_idx) in enumerate(kf.split(X)):
         clf = LogisticRegression(random_state=42, max_iter=1000, n_jobs=5, solver='lbfgs', verbose=1, tol=1e-3)
         clf.fit(X_train_bin, y_train)
         
-        # Get predictions
-        train_probs = clf.predict_proba(X_train_bin)[:, 1]
-        test_probs = clf.predict_proba(X_test_bin)[:, 1]
+        # Get predictions - modified for multiclass
+        train_probs = clf.predict_proba(X_train_bin)
+        test_probs = clf.predict_proba(X_test_bin)
         
         # Calculate and store ROC AUC scores
+        # For multiclass, roc_auc_score will handle the OvR calculation internally
         train_roc_scores[0, bin_idx] = roc_auc_score(y_train, train_probs, multi_class='ovr')
         test_roc_scores[0, bin_idx] = roc_auc_score(y_test, test_probs, multi_class='ovr')
         
@@ -149,6 +166,6 @@ print("\nCompleted evaluation for all folds and time bins")
 
 # Save ROC AUC scores to files
 print("\nSaving results...")
-np.save(f"eval_results_ss_sm/per_bin_linear_voltage_{args.eval_name}_fold{args.fold}_train.npy", train_roc_scores)
-np.save(f"eval_results_ss_sm/per_bin_linear_voltage_{args.eval_name}_fold{args.fold}_test.npy", test_roc_scores)
+np.save(f"eval_results_ss_sm/per_bin_linear_voltage_{args.eval_name}_subject{args.subject}_trial{args.trial}_fold{args.fold}_train.npy", train_roc_scores)
+np.save(f"eval_results_ss_sm/per_bin_linear_voltage_{args.eval_name}_subject{args.subject}_trial{args.trial}_fold{args.fold}_test.npy", test_roc_scores)
 print("Results saved successfully")

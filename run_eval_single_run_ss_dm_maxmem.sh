@@ -2,9 +2,9 @@
 #SBATCH --job-name=eval_single_run          # Name of the job
 #SBATCH --ntasks=1             # 8 tasks total
 #SBATCH --cpus-per-task=6    # Request 8 CPU cores per GPU
-#SBATCH --mem=64G
-#SBATCH -t 4:00:00         # total run time limit (HH:MM:SS) (increased to 24 hours)
-#SBATCH --array=1-988      # 26 subject-trial pairs * 13 eval names = 338 total jobs
+#SBATCH --mem=512G
+#SBATCH -t 12:00:00         # total run time limit (HH:MM:SS) (increased to 24 hours)
+#SBATCH --array=1-836      # 26 subject-trial pairs * 13 eval names = 338 total jobs
 #SBATCH --output r/%A_%a.out # STDOUT
 #SBATCH --error r/%A_%a.err # STDERR
 #SBATCH -p use-everything
@@ -14,8 +14,8 @@ source .venv/bin/activate
 
 # Create arrays of subject IDs and trial IDs that correspond to array task ID
 # for all subject_trials in the dataset
-declare -a subjects=(1 1 1 2 2 2 2 2 2 2 3 3 3 4 4 4 5 6 6 6 7 7 8 9 10 10)
-declare -a trials=(0 1 2 0 1 2 3 4 5 6 0 1 2 0 1 2 0 0 1 4 0 1 0 0 0 1)
+declare -a subjects=(1 1 1 2 2 2 2 2 2 2 3 3 3 4 4 4 6 6 6 7 7 10 10)
+declare -a trials=(0 1 2 0 1 2 3 4 5 6 0 1 2 0 1 2 0 1 4 0 1 0 1)
 declare -a eval_names=(
     "frame_brightness"
     "global_flow"
@@ -55,4 +55,4 @@ SPECTROGRAM_STRING=${spectrogram_string[$SPECTROGRAM_IDX]}
 
 echo "Running eval for subject $SUBJECT_ID, trial $TRIAL_ID, eval $EVAL_NAME"
 # Add the -u flag to Python to force unbuffered output
-python -u eval_single_run_ss_sm.py --subject $SUBJECT_ID --trial $TRIAL_ID --eval_name $EVAL_NAME --folds 5 $SPECTROGRAM_STRING # add this for using spectrogram
+python -u eval_single_run_ss_dm.py --subject $SUBJECT_ID --trial $TRIAL_ID --eval_name $EVAL_NAME $SPECTROGRAM_STRING # add this for using spectrogram
