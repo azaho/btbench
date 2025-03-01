@@ -55,4 +55,4 @@ SPECTROGRAM_STRING=${spectrogram_string[$SPECTROGRAM_IDX]}
 
 echo "Running eval for subject $SUBJECT_ID, trial $TRIAL_ID, eval $EVAL_NAME"
 # Add the -u flag to Python to force unbuffered output
-python -u eval_single_run_ss_dm.py --subject $SUBJECT_ID --trial $TRIAL_ID --eval_name $EVAL_NAME $SPECTROGRAM_STRING # add this for using spectrogram
+python -u eval_single_run_ss_dm.py --subject $SUBJECT_ID --trial $TRIAL_ID --eval_name $EVAL_NAME $SPECTROGRAM_STRING --normalize 1 

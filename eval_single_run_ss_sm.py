@@ -51,7 +51,7 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
     if normalize:
         suffix += '_normalized'
     # Check if results file already exists
-    output_dir = 'eval_results_ss_sm_enhanced_pitch'
+    output_dir = 'eval_results_ss_sm'
     # Check if any matching results files exist using glob
     import glob
     results_pattern = os.path.join(output_dir, f'linear{suffix}_*subject{subject_id}_trial{trial_id}_{eval_name}.json')
@@ -90,7 +90,8 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
         print(f"Length of train data: {len(train_data)}")
         print(f"Length of test data: {len(test_data)}")
 
-        sample_time_from, sample_time_to = int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE), int((START_NEURAL_DATA_BEFORE_WORD_ONSET + 1) * SAMPLING_RATE) # get the first second of neural data after word onset
+        sample_time_from = int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE)
+        sample_time_to = int((START_NEURAL_DATA_BEFORE_WORD_ONSET + 1) * SAMPLING_RATE) # get the first second of neural data after word onset
         
         # Convert dataset to numpy arrays
         # Convert to numpy arrays in one pass
@@ -101,10 +102,10 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
             features, label = train_data[i]
             features = features.numpy()[:, sample_time_from:sample_time_to]
             if spectrogram: features = compute_spectrogram(features)
-            X_train.append(features)#.flatten())
+            X_train.append(features)
             y_train.append(label)
-        X_train = np.array(X_train)
-        y_train = np.array(y_train, dtype=int)
+        X_train = np.array(X_train) # shape: (n_samples, n_channels, n_time_samples) or (n_samples, n_channels, n_time_bins, n_freq_bins) in case of spectrogram
+        y_train = np.array(y_train, dtype=int) # shape: (n_samples,)
         print("Train dataset loaded")
         if normalize:
             train_means = X_train.mean(axis=(0,2) if spectrogram else (0,2), keepdims=True)
@@ -120,7 +121,7 @@ def run_linear_classification(subject_id, trial_id, eval_name, k_folds=5, spectr
             features, label = test_data[i]
             features = features.numpy()[:, sample_time_from:sample_time_to]
             if spectrogram: features = compute_spectrogram(features)
-            X_test.append(features)#.flatten())
+            X_test.append(features)
             y_test.append(label)
         X_test = np.array(X_test)
         y_test = np.array(y_test, dtype=int)

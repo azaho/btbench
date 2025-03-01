@@ -12,6 +12,7 @@ import json
 from datetime import datetime
 import gc
 import psutil
+from btbench_config import START_NEURAL_DATA_BEFORE_WORD_ONSET, SAMPLING_RATE
 
 def compute_spectrogram(data, fs=2048, max_freq=2000, min_freq=0):
     """Compute spectrogram for a single trial of data.
@@ -37,7 +38,7 @@ def compute_spectrogram(data, fs=2048, max_freq=2000, min_freq=0):
     
     return np.log10(Sxx[:, (f<=max_freq) & (f>=min_freq)] + 1e-5)
 
-def run_linear_classification(subject_id, trial_id, eval_name, spectrogram=False, spectrogram_normalize=False):
+def run_linear_classification(subject_id, trial_id, eval_name, spectrogram=False, normalize=False):
     """Run linear classification for a given subject, trial, and eval_name.
     
     Args:
@@ -46,7 +47,7 @@ def run_linear_classification(subject_id, trial_id, eval_name, spectrogram=False
         eval_name (str): eval_name name (e.g., "rms" for volume classification)
     """
     suffix = '_spectrogram' if spectrogram else '_voltage'
-    if spectrogram and spectrogram_normalize:
+    if normalize:
         suffix += '_normalized'
     # Check if results file already exists
     output_dir = 'eval_results_ss_dm'
@@ -77,7 +78,8 @@ def run_linear_classification(subject_id, trial_id, eval_name, spectrogram=False
     
     # Convert dataset to numpy arrays
     print(f"Processing train data... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
-    sample_time_from, sample_time_to = 1024, 3072 # get the first second of neural data after word onset
+    sample_time_from = int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE)
+    sample_time_to = int((START_NEURAL_DATA_BEFORE_WORD_ONSET + 1) * SAMPLING_RATE) # get the first second of neural data after word onset
 
     print(f"Train data shape: {train_dataset[0][0].shape}")
     print(f"Test data shape: {test_dataset[0][0].shape}")
@@ -91,15 +93,16 @@ def run_linear_classification(subject_id, trial_id, eval_name, spectrogram=False
         features, label = train_dataset[i]
         features = features.numpy()[:, sample_time_from:sample_time_to]
         if spectrogram: features = compute_spectrogram(features)
-        X_train.append(features.flatten())
+        X_train.append(features)
         y_train.append(label)
     X_train = np.array(X_train)
     y_train = np.array(y_train, dtype=int)
     print("Train dataset loaded")
-    if spectrogram_normalize:
-        train_means = X_train.mean(axis=0, keepdims=True)
-        train_stds = X_train.std(axis=0, keepdims=True) + 1e-5
-        X_train = (X_train - train_means) / train_stds
+    if normalize:
+        train_means = X_train.mean(axis=(0,2) if spectrogram else (0,2), keepdims=True)
+        train_stds = X_train.std(axis=(0,2) if spectrogram else (0,2), keepdims=True)
+        X_train = (X_train - train_means) / (train_stds + 1e-5)
+    X_train = X_train.reshape(len(X_train), -1)
 
     # Convert test data to numpy arrays
     print(f"Processing test data... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
@@ -109,13 +112,14 @@ def run_linear_classification(subject_id, trial_id, eval_name, spectrogram=False
         features, label = test_dataset[i]
         features = features.numpy()[:, sample_time_from:sample_time_to]
         if spectrogram: features = compute_spectrogram(features)
-        X_test.append(features.flatten())
+        X_test.append(features)
         y_test.append(label)
     X_test = np.array(X_test)
     y_test = np.array(y_test, dtype=int)
     print("Test dataset loaded")
-    if spectrogram_normalize:
-        X_test = (X_test - train_means) / train_stds
+    if normalize:
+        X_test = (X_test - train_means) / (train_stds + 1e-10)
+    X_test = X_test.reshape(len(X_test), -1)
 
     # Train logistic regression with optimized parameters
     print(f"Training logistic regression... (RAM usage: {process.memory_info().rss / 1024 / 1024:.2f} MB)")
@@ -186,7 +190,7 @@ if __name__ == "__main__":
     parser.add_argument("--trial", type=int, required=True, help="Trial ID")
     parser.add_argument("--eval_name", type=str, required=True, help="eval_name name (e.g., 'rms')")
     parser.add_argument("--spectrogram", type=int, default=0, help="Whether to compute spectrogram")
-    parser.add_argument("--spectrogram_normalize", type=int, default=0, help="Whether to normalize spectrogram")
+    parser.add_argument("--normalize", type=int, default=0, help="Whether to normalize features")
     
     args = parser.parse_args()
     
@@ -195,5 +199,5 @@ if __name__ == "__main__":
         trial_id=args.trial,
         eval_name=args.eval_name,
         spectrogram=(args.spectrogram==1),
-        spectrogram_normalize=(args.spectrogram_normalize==1)
+        normalize=(args.normalize==1)
     )

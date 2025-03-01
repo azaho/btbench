@@ -47,8 +47,8 @@ TRIAL=${trials[$PAIR_IDX]}
 
 echo "Running eval for eval $EVAL_NAME, subject $SUBJECT, trial $TRIAL"
 # Add the -u flag to Python to force unbuffered output
-python -u eval_linear_per_bin.py --fold 1 --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL
-python -u eval_linear_per_bin.py --fold 2 --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL
-python -u eval_linear_per_bin.py --fold 3 --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL
-python -u eval_linear_per_bin.py --fold 4 --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL
-python -u eval_linear_per_bin.py --fold 5 --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL
+python -u eval_linear_per_bin.py --fold 1 --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL --normalize 1
+python -u eval_linear_per_bin.py --fold 2 --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL --normalize 1
+python -u eval_linear_per_bin.py --fold 3 --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL --normalize 1
+python -u eval_linear_per_bin.py --fold 4 --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL --normalize 1
+python -u eval_linear_per_bin.py --fold 5 --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL --normalize 1

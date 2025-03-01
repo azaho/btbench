@@ -17,18 +17,24 @@ parser.add_argument('--eval_name', type=str, default='onset', help='Evaluation n
 parser.add_argument('--fold', type=int, choices=[1,2,3,4,5], required=True, help='Fold number (1-5)')
 parser.add_argument('--subject', type=int, required=True, help='Subject ID')
 parser.add_argument('--trial', type=int, required=True, help='Trial ID')
+parser.add_argument('--normalize', type=int, default=0, help='Whether to normalize features')
+parser.add_argument('--spectrogram', type=int, default=0, help='Whether to compute spectrogram')
 
 args = parser.parse_args()
 
 # all possible pairs of (subject_id, trial_id)
 all_subject_trials = [(1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (3, 0), (3, 1), (3, 2), (4, 0), (4, 1), (4, 2), (5, 0), (6, 0), (6, 1), (6, 4), (7, 0), (7, 1), (8, 0), (9, 0), (10, 0), (10, 1)]
 
+suffix = '_spectrogram' if args.spectrogram else '_voltage'
+if args.normalize:
+    suffix += '_normalized'
+
 print(f"Running evaluation for subject {args.subject}, trial {args.trial}, eval {args.eval_name}, fold {args.fold}")
 
 # Check if output files already exist
 output_files = [
-    f"eval_results_ss_sm/per_bin_linear_voltage_{args.eval_name}_subject{args.subject}_trial{args.trial}_fold{args.fold}_train.npy",
-    f"eval_results_ss_sm/per_bin_linear_voltage_{args.eval_name}_subject{args.subject}_trial{args.trial}_fold{args.fold}_test.npy"
+    f"eval_results_ss_sm_per_bin/{suffix}_{args.eval_name}_subject{args.subject}_trial{args.trial}_fold{args.fold}_train.npy",
+    f"eval_results_ss_sm_per_bin/{suffix}_{args.eval_name}_subject{args.subject}_trial{args.trial}_fold{args.fold}_test.npy"
 ]
 for file in output_files:
     if os.path.exists(file):
@@ -47,7 +53,7 @@ print("Shape of the first item: features.shape =", dataset[0][0].shape, "label =
 
 # %%
 from scipy import signal
-def compute_spectrogram(data, fs=2048, max_freq=2000):
+def compute_spectrogram(data, fs=2048, max_freq=2000, min_freq=0):
     """Compute spectrogram for a single trial of data.
     
     Args:
@@ -58,7 +64,7 @@ def compute_spectrogram(data, fs=2048, max_freq=2000):
         numpy.ndarray: Spectrogram representation
     """
     # For 1 second of data at 2048Hz, we'll use larger window
-    nperseg = 512  # 250ms window
+    nperseg = 256  # 125ms window
     noverlap = 0  # 0% overlap
     
     f, t, Sxx = signal.spectrogram(
@@ -69,13 +75,12 @@ def compute_spectrogram(data, fs=2048, max_freq=2000):
         window='boxcar'
     )
     
-    return np.log10(Sxx[:, (f<max_freq) & (f>0)] + 1e-10)
+    return np.log10(Sxx[:, (f<=max_freq) & (f>=min_freq)] + 1e-5)
 
 # %%
 word_onset_idx = int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE) # 1024
 word_onset_idx_end = int((START_NEURAL_DATA_BEFORE_WORD_ONSET + 1) * SAMPLING_RATE) # 3072
 word_onset_idx, word_onset_idx_end = 512, 3072
-spectrogram = False
 
 print("Loading dataset...")
 # Convert PyTorch dataset to numpy arrays for scikit-learn
@@ -85,7 +90,7 @@ y = []
 for i in range(len(dataset)):
     features, label = dataset[i]
     features = features.numpy()[:, word_onset_idx:word_onset_idx_end]
-    if spectrogram:
+    if args.spectrogram:
         features = compute_spectrogram(features)
     X.append(features)
     y.append(label)
@@ -93,12 +98,12 @@ for i in range(len(dataset)):
 X = np.array(X)
 y = np.array(y)
 
-# Normalize each electrode (axis 1) across all samples and timepoints
-print("Normalizing dataset...")
-
-mean = X.mean(axis=(0,2), keepdims=True)  # Mean across samples and time
-std = X.std(axis=(0,2), keepdims=True)    # Std across samples and time
-X = (X - mean) / (std + 1e-10)          # Add small constant to avoid div by 0
+if args.normalize:
+    print("Normalizing dataset...")
+    # Normalize each electrode across all samples and timepoints
+    train_means = X.mean(axis=(0,2) if args.spectrogram else (0,2), keepdims=True)
+    train_stds = X.std(axis=(0,2) if args.spectrogram else (0,2), keepdims=True)
+    X = (X - train_means) / (train_stds + 1e-5)
 
 print("Dataset loaded")
 print("Shape of X:", X.shape, "shape of y:", y.shape)
@@ -137,7 +142,7 @@ for fold_idx, (train_idx, test_idx) in enumerate(kf.split(X)):
     
     for bin_idx in range(n_bins):
         # Reshape data for current time bin
-        if spectrogram:
+        if args.spectrogram:
             X_train_bin = X_train[:, :, :, bin_idx].reshape(X_train.shape[0], -1)
             X_test_bin = X_test[:, :, :, bin_idx].reshape(X_test.shape[0], -1)
         else:
@@ -166,6 +171,7 @@ print("\nCompleted evaluation for all folds and time bins")
 
 # Save ROC AUC scores to files
 print("\nSaving results...")
-np.save(f"eval_results_ss_sm/per_bin_linear_voltage_{args.eval_name}_subject{args.subject}_trial{args.trial}_fold{args.fold}_train.npy", train_roc_scores)
-np.save(f"eval_results_ss_sm/per_bin_linear_voltage_{args.eval_name}_subject{args.subject}_trial{args.trial}_fold{args.fold}_test.npy", test_roc_scores)
+os.makedirs("eval_results_ss_sm_per_bin", exist_ok=True)
+np.save(f"eval_results_ss_sm_per_bin/{suffix}_{args.eval_name}_subject{args.subject}_trial{args.trial}_fold{args.fold}_train.npy", train_roc_scores)
+np.save(f"eval_results_ss_sm_per_bin/{suffix}_{args.eval_name}_subject{args.subject}_trial{args.trial}_fold{args.fold}_test.npy", test_roc_scores)
 print("Results saved successfully")
