@@ -2,9 +2,9 @@
 #SBATCH --job-name=eval_single_run          # Name of the job
 #SBATCH --ntasks=1             # 8 tasks total
 #SBATCH --cpus-per-task=6    # Request 8 CPU cores per GPU
-#SBATCH --mem=512G
-#SBATCH -t 12:00:00         # total run time limit (HH:MM:SS) (increased to 24 hours)
-#SBATCH --array=1-988      # 26 subject-trial pairs * 13 eval names = 338 total jobs
+#SBATCH --mem=384G
+#SBATCH -t 4:00:00         # total run time limit (HH:MM:SS) (increased to 24 hours)
+#SBATCH --array=6,21,22,38,39,51,91,92,118,125,126,141,142,146,164,167,168,206,207,208,212,215,216,217,224,225,226,238,239,240,250,251,252,257,258,259,266,267,268,277,278,279,283,284,285,288,293,294,295,305,306,307,316,317,318,328,329,335,336,338,339,363,364,388,391,395,396,398,478,772,792,794,796,810,832,984      # Only run failed jobs
 #SBATCH --output r/%A_%a.out # STDOUT
 #SBATCH --error r/%A_%a.err # STDERR
 #SBATCH -p use-everything
@@ -55,4 +55,4 @@ SPECTROGRAM_STRING=${spectrogram_string[$SPECTROGRAM_IDX]}
 
 echo "Running eval for subject $SUBJECT_ID, trial $TRIAL_ID, eval $EVAL_NAME"
 # Add the -u flag to Python to force unbuffered output
-python -u eval_single_run_ss_sm.py --subject $SUBJECT_ID --trial $TRIAL_ID --eval_name $EVAL_NAME --folds 5 $SPECTROGRAM_STRING # add this for using spectrogram
+python -u eval_single_run_ss_sm.py --subject $SUBJECT_ID --trial $TRIAL_ID --eval_name $EVAL_NAME --folds 5 $SPECTROGRAM_STRING --normalize 1
