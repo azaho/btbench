@@ -43,7 +43,7 @@ python braintreebank_download_extract.py
 
 3. Process the subject trial dataframes:
 ```
-python btbench_process_subject_trial_df.py
+python btbench_process_subject_trials.py
 ```
 This command will create the files in a directory called `subject_metadata`.
 
@@ -53,10 +53,10 @@ object in code block 2.
 
 ### Description of the files in the repository
 - `figures/` - directory for files creating the figures and storing the figures
-- `subject_metadata/` - directory for the subject metadata (created by the script `btbench_process_subject_trial_df.py`)
+- `subject_metadata/` - directory for the subject metadata (created by the script `btbench_process_subject_trials.py`)
 - `speech_selectivity_data/` - directory for the speech selectivity data (created by the script `btbench_process_speech_selectivity.py`)
 - `btbench_config.py` - configuration file for the benchmark
-- `btbench_process_subject_trial_df.py` - script for processing the subject trial metadata
+- `btbench_process_subject_trials.py` - script for processing the subject trial metadata
 - `btbench_process_speech_selectivity.py` - script for processing the electrode speech selectivity data
 - `btbench_datasets.py` - script that defines the BrainTreebankSubjectTrialBenchmarkDataset class, which contains the features/labels for a single subject and trial
 - `btbench_train_test_splits.py` - script that defines the train/test splits for the benchmark, for each of the 4 train/test split types (SS-SM, SS-DM, DS-SM, DS-DM)
