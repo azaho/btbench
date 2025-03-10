@@ -22,7 +22,7 @@ verbose = bool(args.verbose)
 save_dir = args.save_dir
 
 bins_start_before_word_onset_seconds = 0.5
-bins_end_after_word_onset_seconds = 1.5
+bins_end_after_word_onset_seconds = 2.5
 bin_size_seconds = 0.125
 
 # use cache=True to load this trial's neural data into RAM, if you have enough memory!
@@ -31,7 +31,7 @@ subject = BrainTreebankSubject(subject_id, allow_corrupted=False, cache=True, dt
 all_electrode_labels = subject.electrode_labels
 
 results_electrode = {}
-for electrode_label in all_electrode_labels[:1]:
+for electrode_idx, electrode_label in enumerate(all_electrode_labels):
     subject.clear_neural_data_cache()
     subject.set_electrode_subset([electrode_label])
     subject.load_neural_data(trial_id)
@@ -110,7 +110,7 @@ for electrode_label in all_electrode_labels[:1]:
                 "test_roc_auc": float(test_roc)
             }
             bin_results["folds"].append(fold_result)
-            if verbose: print(f"Electrode {electrode_label}, Fold {fold_idx+1}, Bin {bin_start}-{bin_end}: Train accuracy: {train_accuracy:.3f}, Test accuracy: {test_accuracy:.3f}, Train ROC AUC: {train_roc:.3f}, Test ROC AUC: {test_roc:.3f}")
+            if verbose: print(f"Electrode {electrode_label} ({electrode_idx+1}/{len(all_electrode_labels)}), Fold {fold_idx+1}, Bin {bin_start}-{bin_end}: Train accuracy: {train_accuracy:.3f}, Test accuracy: {test_accuracy:.3f}, Train ROC AUC: {train_roc:.3f}, Test ROC AUC: {test_roc:.3f}")
 
         if bin_start == -bins_start_before_word_onset_seconds and bin_end == bins_end_after_word_onset_seconds:
             results_electrode[electrode_label]["whole_window"] = bin_results # whole window results
