@@ -132,7 +132,7 @@ results = {
     }
 }
 os.makedirs(save_dir, exist_ok=True) # Create save directory if it doesn't exist
-with open(f"{save_dir}/linear_regression_electrode_time_bins_{subject.subject_identifier}_{trial_id}.json", "w") as f:
+with open(f"{save_dir}/linear_regression_electrode_time_bins_{subject.subject_identifier}_{trial_id}_{eval_name}.json", "w") as f:
     json.dump(results, f, indent=4)
 if verbose:
-    print(f"Results saved to {save_dir}/linear_regression_electrode_time_bins_{subject.subject_identifier}_{trial_id}.json")
+    print(f"Results saved to {save_dir}/linear_regression_electrode_time_bins_{subject.subject_identifier}_{trial_id}_{eval_name}.json")
