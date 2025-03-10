@@ -15,14 +15,7 @@ single_float_variables_name_remapping = {
     "delta_volume": "delta_rms",
     "delta_pitch": "delta_pitch",
     "gpt2_surprisal": "gpt2_surprisal",
-    "word_length": "word_length",
-    
-    "volume_v2_raw": "volume_v2_raw",
-    "pitch_v2_raw": "pitch_v2_raw",
-    "volume_v2_enhanced": "volume_v2_enhanced",
-    "pitch_v2_enhanced": "pitch_v2_enhanced",
-    "volume__reproduced": "volume__reproduced",
-    "pitch__reproduced": "pitch__reproduced"
+    "word_length": "word_length"
 }
 four_way_cardinal_directions_name_remapping = {
     "global_flow_angle": "max_global_angle",
@@ -38,10 +31,24 @@ classification_variables = list(classification_variables_name_remapping.values()
 all_tasks = single_float_variables + four_way_cardinal_direction_variables + ["onset", "speech"] + ["face_num", "word_gap", "word_index", "speaker"] + classification_variables
         
 class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
-    def __init__(self, subject, trial_id, dtype, eval_name):
+    def __init__(self, subject, trial_id, dtype, eval_name, output_indices=False, 
+                 start_neural_data_before_word_onset=START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE, end_neural_data_after_word_onset=END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE):
         """
         Args:
-            eval_name (str): can be "pitch" or "rms" (rms for volume) or "onset" or "speech"
+            subject (Subject): the subject to evaluate on
+            trial_id (int): the trial to evaluate on
+            dtype (torch.dtype): the data type of the returned data
+            eval_name (str): the name of the variable to evaluate on
+                Options for eval_name (from the BTBench paper):
+                    frame_brightness, global_flow, local_flow, global_flow_angle, local_flow_angle, face_num, volume, pitch, delta_volume, 
+                    delta_pitch, speech, onset, gpt2_surprisal, word_length, word_gap, word_index, word_head_pos, word_part_speech, speaker
+
+            output_indices (bool): 
+                if True, the dataset will output the indices of the samples in the neural data in a tuple: (index_from, index_to); 
+                if False, the dataset will output the neural data directly
+            
+            start_neural_data_before_word_onset (int): the number of samples to start the neural data before each word onset
+            end_neural_data_after_word_onset (int): the number of samples to end the neural data after each word onset
         """
         assert eval_name in all_tasks, f"eval_name must be one of {all_tasks}, not {eval_name}"
 
@@ -50,7 +57,10 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
         self.trial_id = trial_id
         self.eval_name = eval_name
         self.dtype = dtype
-        
+        self.output_indices = output_indices
+        self.start_neural_data_before_word_onset = start_neural_data_before_word_onset
+        self.end_neural_data_after_word_onset = end_neural_data_after_word_onset    
+
         eval_name_remapped = eval_name
         if eval_name in single_float_variables_name_remapping: eval_name_remapped = single_float_variables_name_remapping[eval_name]
         if eval_name in four_way_cardinal_directions_name_remapping: eval_name_remapped = four_way_cardinal_directions_name_remapping[eval_name]
@@ -161,14 +171,17 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
             self.n_samples = len(self.balanced_indices)
 
     def _get_neural_data(self, window_from, window_to):
-        input = self.subject.get_all_electrode_data(self.trial_id, window_from=window_from, window_to=window_to)
-        return input.to(dtype=self.dtype)
+        if not self.output_indices:
+            input = self.subject.get_all_electrode_data(self.trial_id, window_from=window_from, window_to=window_to)
+            return input.to(dtype=self.dtype)
+        else:
+            return window_from, window_to # just return the window indices
 
     def _simple_float_variable__getitem__(self, idx):
         word_index = self.extreme_indices[idx]
         row = self.all_words_df.iloc[word_index]
-        est_idx = int(row['est_idx']) - int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE)
-        est_end_idx = int(row['est_idx']) + int(END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE)
+        est_idx = int(row['est_idx']) - int(self.start_neural_data_before_word_onset)
+        est_end_idx = int(row['est_idx']) + int(self.end_neural_data_after_word_onset)
         input = self._get_neural_data(est_idx, est_end_idx)
         return input, self.extreme_labels[idx].item()
 
@@ -176,23 +189,23 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
         if idx % 2 == 0: # even indices are positive samples
             word_index = self.positive_indices[idx//2]
             row = self.all_words_df.iloc[word_index]
-            est_idx = int(row['est_idx']) - int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE)
-            est_end_idx = int(row['est_idx']) + int(END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE)
+            est_idx = int(row['est_idx']) - int(self.start_neural_data_before_word_onset)
+            est_end_idx = int(row['est_idx']) + int(self.end_neural_data_after_word_onset)
             input = self._get_neural_data(est_idx, est_end_idx)
             return input, 1
         else: # odd indices are negative samples
             item_index = self.negative_indices[idx//2]
             row = self.nonverbal_df.iloc[item_index]
             est_idx = int(row['est_idx'])
-            est_end_idx = int(row['est_end_idx']) # == est_idx + NEURAL_DATA_NONVERBAL_WINDOW_SIZE * SAMPLING_RATE
+            est_end_idx = est_idx + self.end_neural_data_after_word_onset + self.start_neural_data_before_word_onset
             input = self._get_neural_data(est_idx, est_end_idx)
             return input, 0
         
     def _classification__getitem__(self, idx):
         word_index = self.balanced_indices[idx]
         row = self.all_words_df.iloc[word_index]
-        est_idx = int(row['est_idx']) - int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE)
-        est_end_idx = int(row['est_idx']) + int(END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE)
+        est_idx = int(row['est_idx']) - int(self.start_neural_data_before_word_onset)
+        est_end_idx = int(row['est_idx']) + int(self.end_neural_data_after_word_onset)
         input = self._get_neural_data(est_idx, est_end_idx)
         return input, self.class_labels[idx].item()
         
@@ -208,10 +221,3 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
             return self._onset_speech__getitem__(idx)
         else:
             raise ValueError(f"Invalid eval_name: {self.eval_name}")
-        
-if __name__ == "__main__":
-    subject = Subject(3, cache=False)
-    dataset = BrainTreebankSubjectTrialBenchmarkDataset(subject, 0, dtype=torch.float32, eval_name="speaker")
-    print(len(dataset))
-    print(dataset[1][0].shape)
-    print(dataset[1][1])

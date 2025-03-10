@@ -33,6 +33,10 @@ class BrainTreebankSubject:
         # For downstream Laplacian rereferencing
         self.laplacian_electrodes, self.electrode_neighbors = self._get_all_laplacian_electrodes()
 
+    def set_electrode_subset(self, electrode_subset):
+        self.electrode_labels = electrode_subset
+        self.electrode_ids = {e:i for i, e in enumerate(self.electrode_labels)}
+
     def get_n_electrodes(self):
         return len(self.electrode_labels)
     def _load_localization_data(self):
@@ -154,7 +158,7 @@ class BrainTreebankSubject:
         coordinates = torch.zeros((len(self.electrode_labels), 3), dtype=self.dtype)
         for i, label in enumerate(self.electrode_labels):
             row = self.get_electrode_metadata(label)
-            coordinates[i] = torch.tensor([row['L'], row['I'], row['P']], dtype=self.dtype)
+            coordinates[i] = torch.tensor([row['L'], row['P'], row['I']], dtype=self.dtype)
         return coordinates
     def get_electrode_metadata(self, electrode_label):
         """
@@ -192,73 +196,4 @@ class BrainTreebankSubject:
             for electrode_label, electrode_id in self.electrode_ids.items():
                 all_electrode_data[electrode_id] = self.get_electrode_data(electrode_label, trial_id, window_from=window_from, window_to=window_to)
             return all_electrode_data
-        
-
-    # XXX decide whether we need this
-    # def calculate_normalizing_params_spectrogram(self, trial_id, sample_timebin_size, device, window_to=None):
-    #     """
-    #         Calculate the normalizing params for the spectrograms for a given trial, per frequency bin.
-    #     """
-    #     all_electrode_data = self.get_all_electrode_data(trial_id, window_to=window_to)
-    #     n_timebins = all_electrode_data.shape[1] // sample_timebin_size
-    #     all_electrode_data = all_electrode_data[:, :n_timebins*sample_timebin_size].reshape(len(self.electrode_labels), n_timebins, sample_timebin_size)
-    #     all_electrode_data = all_electrode_data.to(device, dtype=torch.float32)
-
-    #     spectrogram = torch.fft.fft(all_electrode_data, dim=-1)
-    #     spectrogram = torch.abs(spectrogram)
-
-    #     return spectrogram.mean(dim=0), spectrogram.std(dim=0)
-
-
-if __name__ == "__main__":
-    # This code checks the memory usage of the Subject class for a given trial.
-    # Subject 3 trial 0 weights aeound 3.5GB on the disk, which is achieved when using bfloat16 dtype.
-    # When using torch.float32, the tensor weighs around 6-7GB.
-    import psutil
-    import sys
-    process = psutil.Process()
-
-    def print_memory_usage(label):
-        memory_mb = process.memory_info().rss / 1024 / 1024
-        print(f"{label}: {memory_mb:.2f} MB")
-
-    print_memory_usage("Initial RAM usage")
-    
-    subject = BrainTreebankSubject(3, cache=True, dtype=torch.bfloat16)
-    print_memory_usage("After creating Subject")
-    
-    # Print size of major attributes
-    print("\nSize of major attributes:")
-    for attr_name, attr_value in subject.__dict__.items():
-        if isinstance(attr_value, (dict, list, torch.Tensor)):
-            size_mb = sys.getsizeof(attr_value) / 1024 / 1024
-            if isinstance(attr_value, dict):
-                # For dictionaries, also check values
-                for v in attr_value.values():
-                    if isinstance(v, torch.Tensor):
-                        size_mb += v.element_size() * v.nelement() / 1024 / 1024
-            elif isinstance(attr_value, torch.Tensor):
-                size_mb = attr_value.element_size() * attr_value.nelement() / 1024 / 1024
-            print(f"{attr_name}: {size_mb:.2f} MB")
-    
-    subject.load_neural_data(0)
-    print_memory_usage("\nAfter loading neural data")
-    
-    data = subject.get_all_electrode_data(0, 0, 100)
-    print_memory_usage("After getting electrode data")
-    
-    # Print shape and memory info of the cached data
-    if subject.neural_data_cache:
-        for trial_id, tensor in subject.neural_data_cache.items():
-            print(f"\nTrial {trial_id} cache info:")
-            print(f"Shape: {tensor.shape}")
-            print(f"Dtype: {tensor.dtype}")
-            print(f"Memory usage: {tensor.element_size() * tensor.nelement() / 1024 / 1024:.2f} MB")
-
-    import gc
-    gc.collect()
-    print_memory_usage("After garbage collection")
-
-    print(f"Data shape: {data.shape}")
-
-Subject = BrainTreebankSubject # alias for convenience
+Subject = BrainTreebankSubject # for backwards compatibility
