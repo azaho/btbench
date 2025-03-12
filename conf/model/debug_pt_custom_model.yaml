@@ -1,0 +1,12 @@
+name: debug_pt_model_custom
+hidden_dim: 512
+input_dim: 768
+layer_activation: "gelu"
+attention_weights: false
+n_head: 8
+n_layers: 6
+upstream_cfg:
+    position_encoding: "debug_multi_subj_position_encoding"
+    n_head: 8
+    n_layers: 6
+    hidden_dim: 512

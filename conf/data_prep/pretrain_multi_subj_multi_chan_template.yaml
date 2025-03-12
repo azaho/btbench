@@ -1,0 +1,3 @@
+name: pretrain_multi_subj_multi_chan
+brain_runs: ??? #path to a json file of format {<subj>:[trials]}
+electrodes: ??? #path to a json file of format {<subj>:[electrodes]}
