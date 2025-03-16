@@ -1,10 +1,10 @@
 import torch
 from torch.utils.data import Dataset, DataLoader, Subset, ConcatDataset
 from sklearn.model_selection import KFold
-from braintreebank_subject import Subject
-from btbench_datasets import BrainTreebankSubjectTrialBenchmarkDataset
+from subject_braintreebank import Subject
+from .btbench_datasets import BrainTreebankSubjectTrialBenchmarkDataset
 import numpy as np
-import btbench_config
+from .btbench_config import *
 
 _all_subject_trials = [
     (1, 0), (1, 1), (1, 2), 
@@ -19,13 +19,12 @@ _all_subject_trials = [
     (10, 0), (10, 1)
 ]
 
-
 def generate_splits_DS_DM(all_subjects, test_subject_id, test_trial_id, eval_name, dtype=torch.float32,
                           
                           # Dataset parameters
                           output_indices=False, 
-                          start_neural_data_before_word_onset=btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET, 
-                          end_neural_data_after_word_onset=btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET):
+                          start_neural_data_before_word_onset=int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE), 
+                          end_neural_data_after_word_onset=int(END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE)):
     """Generate train/test splits for Different Subject Different Movie (DS-DM) evaluation.
     
     This function creates train/test splits by using one subject and movie as the test set,
@@ -41,8 +40,8 @@ def generate_splits_DS_DM(all_subjects, test_subject_id, test_trial_id, eval_nam
 
         # Dataset parameters
         output_indices (bool, optional): Whether to output the indices of the neural data. Defaults to False.
-        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET.
-        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET.
+        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to START_NEURAL_DATA_BEFORE_WORD_ONSET.
+        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to END_NEURAL_DATA_AFTER_WORD_ONSET.
 
     Returns:
         tuple: A tuple containing:
@@ -67,8 +66,8 @@ def generate_splits_DS_SM(all_subjects, test_subject_id, test_trial_id, eval_nam
                           
                           # Dataset parameters
                           output_indices=False, 
-                          start_neural_data_before_word_onset=btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET, 
-                          end_neural_data_after_word_onset=btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET):
+                          start_neural_data_before_word_onset=int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE), 
+                          end_neural_data_after_word_onset=END_NEURAL_DATA_AFTER_WORD_ONSET):
     """Generate train/test splits for Different Subject Same Movie (DS-SM) evaluation.
     
     This function creates train/test splits by using one subject and movie as the test set,
@@ -84,8 +83,8 @@ def generate_splits_DS_SM(all_subjects, test_subject_id, test_trial_id, eval_nam
 
         # Dataset parameters
         output_indices (bool, optional): Whether to output the indices of the neural data. Defaults to False.
-        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET.
-        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET.
+        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to START_NEURAL_DATA_BEFORE_WORD_ONSET.
+        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to END_NEURAL_DATA_AFTER_WORD_ONSET.
 
     Returns:
         tuple: A tuple containing:
@@ -149,8 +148,8 @@ def generate_splits_SS_DM(test_subject, test_trial_id, eval_name, dtype=torch.fl
                           
                           # Dataset parameters
                           output_indices=False, 
-                          start_neural_data_before_word_onset=btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET, 
-                          end_neural_data_after_word_onset=btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET):
+                          start_neural_data_before_word_onset=int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE), 
+                          end_neural_data_after_word_onset=int(END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE)):
     """Generate train/test splits for Single Subject Different Movies (SS-DM) evaluation.
     
     This function creates train/test splits by using one movie as the test set and all other
@@ -166,8 +165,8 @@ def generate_splits_SS_DM(test_subject, test_trial_id, eval_name, dtype=torch.fl
 
         # Dataset parameters
         output_indices (bool, optional): Whether to output the indices of the neural data. Defaults to False.
-        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET.
-        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET.
+        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to START_NEURAL_DATA_BEFORE_WORD_ONSET.
+        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to END_NEURAL_DATA_AFTER_WORD_ONSET.
 
     Returns:
         tuple: A tuple containing:
@@ -210,8 +209,8 @@ def generate_splits_SS_SM(test_subject, test_trial_id, eval_name, add_other_tria
                           
                           # Dataset parameters
                           output_indices=False, 
-                          start_neural_data_before_word_onset=btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET, 
-                          end_neural_data_after_word_onset=btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET):
+                          start_neural_data_before_word_onset=int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE), 
+                          end_neural_data_after_word_onset=int(END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE)):
     """Generate train/test splits for Single Subject Single Movie (SS-SM) evaluation.
     
     This function performs k-fold cross validation on data from a single subject and movie.
@@ -231,8 +230,8 @@ def generate_splits_SS_SM(test_subject, test_trial_id, eval_name, add_other_tria
 
         # Dataset parameters
         output_indices (bool, optional): Whether to output the indices of the neural data. Defaults to False.
-        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET.
-        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET.
+        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to START_NEURAL_DATA_BEFORE_WORD_ONSET.
+        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to END_NEURAL_DATA_AFTER_WORD_ONSET.
 
     Returns:
         tuple: A tuple containing:
