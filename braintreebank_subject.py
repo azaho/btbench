@@ -108,7 +108,7 @@ class BrainTreebankSubject:
         if trial_id in self.neural_data_cache: return  # no need to cache again
         
         # Open file with context manager to ensure proper closing
-        neural_data_file = os.path.join(ROOT_DIR, f'sub_{self.subject_id}_trial{trial_id:03}.h5')
+        neural_data_file = os.path.join(ROOT_DIR, 'all_subject_data', f'sub_{self.subject_id}_trial{trial_id:03}.h5')
         with h5py.File(neural_data_file, 'r', locking=False) as f:
             # Get data length first
             self.electrode_data_length[trial_id] = f['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0]
@@ -160,11 +160,13 @@ class BrainTreebankSubject:
             row = self.get_electrode_metadata(label)
             coordinates[i] = torch.tensor([row['L'], row['P'], row['I']], dtype=self.dtype)
         return coordinates
+
     def get_electrode_metadata(self, electrode_label):
         """
             Get the metadata for a given electrode.
         """
         return self.localization_data[self.localization_data['Electrode'] == electrode_label].iloc[0]
+
     def get_all_electrode_metadata(self):
         filtered_df = self.localization_data[self.localization_data['Electrode'].isin(self.electrode_labels)]
         ordered_df = pd.DataFrame([filtered_df[filtered_df['Electrode'] == label].iloc[0] for label in self.electrode_labels])
