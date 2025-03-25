@@ -19,7 +19,7 @@ def main(cfg: DictConfig) -> None:
     task.load_datasets(cfg.data, cfg.preprocessor)
     model = task.build_model(cfg.model)
     criterion = task.build_criterion(cfg.criterion)
-    runner = Runner(cfg.exp.runner, task, model, criterion)
+    runner = Runner(cfg.exp.runner, task, criterion)
     best_model = runner.train()
     runner.test(best_model)
 

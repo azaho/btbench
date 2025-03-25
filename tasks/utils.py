@@ -18,7 +18,10 @@ def get_split_idxs(dataset, args):
     train_fewshot = args.get("train_fewshot", len(train_idxs))
     train_idxs = train_idxs[:train_fewshot]
 
-    val_idxs, test_idxs = train_test_split(test_val_idxs, test_size=test_split/(val_split+test_split), random_state=42)   
+    if test_split == 0:
+        val_idxs, test_idxs = test_val_idxs, []
+    else:
+        val_idxs, test_idxs = train_test_split(test_val_idxs, test_size=test_split/(val_split+test_split), random_state=42)   
     return train_idxs, val_idxs, test_idxs
 
 def make_saved_data_split_path_name(args):

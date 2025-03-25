@@ -17,8 +17,6 @@ class PTFeatureExtractCoordsTask(BaseTask):
         super(PTFeatureExtractCoordsTask, self).__init__(cfg)
 
     def build_model(self, cfg):
-        assert hasattr(self, "dataset")
-        input_dim = self.dataset.get_input_dim()
         return models.build_model(cfg)
         
     @classmethod

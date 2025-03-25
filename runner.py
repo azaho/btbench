@@ -18,9 +18,9 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 class Runner():
-    def __init__(self, cfg, task, model, criterion):
+    def __init__(self, cfg, task, criterion, model_cfg):
         self.cfg = cfg
-        self.model = model
+        self.model_cfg = model_cfg
         self.task = task
         self.evaluator = None
         self.device = cfg.device
@@ -32,39 +32,32 @@ class Runner():
             exp_dir = cfg.get('results_dir', self.exp_dir)
             self.logger = SummaryWriter(exp_dir)
 
-        if cfg.multi_gpu:
-            self.model = torch.nn.DataParallel(self.model)
-            log.info(f'Use {torch.cuda.device_count()} GPUs')
-        assert not(cfg.device=='cpu' and cfg.multi_gpu)
-        self.model.to(self.device)
-        self.optim = self._init_optim(self.cfg)
-        self.scheduler = build_scheduler(self.cfg.scheduler, self.optim)
         total_steps = self.cfg.total_steps
-        self.progress = tqdm(total=total_steps, dynamic_ncols=True, desc="overall")
+        
 
         if 'start_from_ckpt' in cfg:
             self.load_from_ckpt()
 
-    def load_from_ckpt(self):
+    def load_from_ckpt(self, model):
         ckpt_path = self.cfg.start_from_ckpt
         init_state = torch.load(ckpt_path)
-        self.task.load_model_weights(self.model, init_state['model'], self.cfg.multi_gpu)
+        self.task.load_model_weights(model, init_state['model'], self.cfg.multi_gpu)
         self.optim.load_state_dict(init_state["optim"])
         self.scheduler.load_state_dict(init_state["optim"])
 
-    def _init_optim(self, args):
+    def _init_optim(self, args, model):
         if args.optim == "SGD":
-            optim = torch.optim.SGD(self.model.parameters(), lr=args.lr, momentum = 0.9)
+            optim = torch.optim.SGD(model.parameters(), lr=args.lr, momentum = 0.9)
         elif args.optim == 'Adam':
-            optim = torch.optim.Adam(self.model.parameters(), lr=args.lr, weight_decay=0.01)
+            optim = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=0.01)
         elif args.optim == 'AdamW':
-            optim = torch.optim.AdamW(self.model.parameters(), lr=args.lr)
+            optim = torch.optim.AdamW(model.parameters(), lr=args.lr)
         elif args.optim == 'AdamW_finetune':
-            upstream_params = self.model.upstream.parameters() if not self.cfg.multi_gpu else self.model.module.upstream.parameters()
+            upstream_params = model.upstream.parameters() if not self.cfg.multi_gpu else model.module.upstream.parameters()
             upstream_params = list(upstream_params)
             ignored_params = list(map(id, upstream_params))
             linear_params = filter(lambda p: id(p) not in ignored_params,
-                                 self.model.parameters())
+                                 model.parameters())
             linear_params = list(linear_params)
 
             optim = torch.optim.AdamW([
@@ -72,14 +65,14 @@ class Runner():
                         {'params': linear_params, 'lr': args.lr}
                     ], lr=args.lr*0.1)
         elif args.optim == 'LAMB':
-            optim = torch_optim.Lamb(self.model.parameters(), lr=args.lr)
+            optim = torch_optim.Lamb(model.parameters(), lr=args.lr)
         else:
             print("no valid optim name")
         return optim
 
-    def output_logs(self, train_logging_outs, val_logging_outs):
-        global_step = self.progress.n
-        train_logging_outs['lr'] = self.scheduler.get_lr()
+    def output_logs(self, progress, scheduler, train_logging_outs, val_logging_outs):
+        global_step = progress
+        train_logging_outs['lr'] = scheduler.get_lr()
         standard_metrics = ["lr", "loss", "grad_norm"]
         all_standard_metrics = {}
         def add_prefix(prefix, outs):
@@ -96,8 +89,8 @@ class Runner():
                 self.logger.add_scalar(k, v, global_step=global_step)
         self.task.output_logs(train_logging_outs, val_logging_outs, self.logger, global_step)
 
-    def get_valid_outs(self, valid_loader):
-        valid_logging_outs = self.task.get_valid_outs(self.model, valid_loader, self.criterion, self.device) 
+    def get_valid_outs(self, valid_loader, model):
+        valid_logging_outs = self.task.get_valid_outs(valid_loader, self.criterion, self.device) 
         return valid_logging_outs
 
     def save_checkpoint_last(self, states, best_val=False):
@@ -110,29 +103,29 @@ class Runner():
         torch.save(states, save_path)
         log.info(f'Saved checkpoint to {save_path}')
 
-    def save_checkpoints(self, best_val=False):
+    def save_checkpoints(self, model, optim, scheduler, best_val=False):
         if 'save_checkpoints' in self.cfg and not self.cfg.save_checkpoints:#the default is to save the checkpoints. so this only triggers if the argument is deliberately false.
             return
         all_states = {}
-        all_states = self.task.save_model_weights(self.model, all_states, self.cfg.multi_gpu)
-        all_states['optim'] = self.optim.state_dict()
-        all_states['scheduler'] = self.scheduler.get_state_dict()
+        all_states = self.task.save_model_weights(all_states, self.cfg.multi_gpu)
+        all_states['optim'] = optim.state_dict()
+        all_states['scheduler'] = scheduler.get_state_dict()
         if self.cfg.multi_gpu:
-            all_states['model_cfg'] = self.model.module.cfg
+            all_states['model_cfg'] = model.module.cfg
         else:
-            all_states['model_cfg'] = self.model.cfg
+            all_states['model_cfg'] = model.cfg
         self.save_checkpoint_last(all_states)
         if best_val:
             self.save_checkpoint_last(all_states, best_val)
         
-    def run_epoch(self, train_loader, valid_loader, total_loss, best_state):
+    def run_epoch(self, model, optim, scheduler, train_loader, valid_loader, total_loss, best_state):
         epoch_loss = []
         best_model, best_val = best_state
         for batch in train_loader:
             if self.progress.n >= self.progress.total:
                 break
-            self.model.train()
-            logging_out = self.task.train_step(batch, self.model, self.criterion, self.optim, self.scheduler, self.device, self.cfg.grad_clip)
+            model.train()
+            logging_out = self.task.train_step(batch, model, self.criterion, optim, self.scheduler, self.device, self.cfg.grad_clip)
             total_loss.append(logging_out["loss"])
             epoch_loss.append(logging_out["loss"])
             log_step = self.progress.n % self.cfg.log_step == 0 or self.progress.n == self.progress.total - 1
@@ -143,11 +136,11 @@ class Runner():
 
             valid_logging_outs = {}
             if ckpt_step or log_step:
-                self.model.eval()
+                model.eval()
                 valid_logging_outs = self.get_valid_outs(valid_loader)
             if log_step:
                 logging_out["loss"] = np.mean(total_loss)
-                self.output_logs(logging_out, valid_logging_outs)
+                self.output_logs(progress, logging_out, valid_logging_outs)
                 total_loss = []
             if ckpt_step:
                 better = False
@@ -160,7 +153,7 @@ class Runner():
                 if better:
                     self.save_checkpoints(best_val=True)
                     best_val = valid_logging_outs
-                    best_model = copy.deepcopy(self.model)
+                    best_model = copy.deepcopy(model)
                 else:
                     self.save_checkpoints()
             self.progress.update(1)
@@ -169,21 +162,39 @@ class Runner():
     def scheduler_step(self):
         pass
 
-    def train(self):
-        train_loader = self.get_batch_iterator(self.task.train_set, self.cfg.train_batch_size, shuffle=self.cfg.shuffle, num_workers=self.cfg.num_workers, persistent_workers=self.cfg.num_workers>0)
-        valid_loader = self.get_batch_iterator(self.task.valid_set, self.cfg.valid_batch_size, shuffle=self.cfg.shuffle)
+    def cross_val(self):
+        k_fold = len(self.task.train_datasets)
+        for i in range(k_fold):
+            model = self.task.build_model(self.model_cfg)
 
+            if self.cfg.multi_gpu:
+                model = torch.nn.DataParallel(model)
+                log.info(f'Use {torch.cuda.device_count()} GPUs')
+            assert not(self.cfg.device=='cpu' and self.cfg.multi_gpu)
+            model.to(self.device)
+            optim = self._init_optim(self.cfg, model)
+            scheduler = build_scheduler(self.cfg.scheduler, optim)
+
+            train_loader = self.get_batch_iterator(self.task.train_datasets[i], self.cfg.train_batch_size, shuffle=self.cfg.shuffle, num_workers=self.cfg.num_workers, persistent_workers=self.cfg.num_workers>0)
+            val_loader = self.get_batch_iterator(self.task.val_datasets[i], self.cfg.valid_batch_size, shuffle=self.cfg.shuffle, num_workers=self.cfg.num_workers, persistent_workers=self.cfg.num_workers>0)
+            test_loader = self.get_batch_iterator(self.task.test_datasets[i], self.cfg.valid_batch_size, shuffle=self.cfg.shuffle)
+            best_model = self.train(model, optim, scheduler, train_loader, val_loader)
+        pass
+
+    def train(self, model, optim, scheduler, train_loader, valid_loader):
         total_loss = []
         best_val = {"loss": float("inf"), "roc_auc": 0}
         best_model = None
         best_state = (best_model, best_val)
+        progress = tqdm(total=total_steps, dynamic_ncols=True, desc="overall")
         with logging_redirect_tqdm():
             if self.cfg.checkpoint_step > -1:
-                self.save_checkpoints()
-            while self.progress.n < self.progress.total:
-                total_loss, best_state = self.run_epoch(train_loader, valid_loader, total_loss, best_state)
+                self.save_checkpoints(model, optim, scheduler)
+            while progress.n < progress.total:
+                total_loss, best_state = self.run_epoch(model, train_loader, valid_loader, 
+                                                        progress, total_loss, best_state)
                 best_model, best_val = best_state
-            self.progress.close()
+            progress.close()
         return best_model
                 
     def format_test_outs(self, test_outs):

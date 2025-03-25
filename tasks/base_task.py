@@ -14,24 +14,7 @@ class BaseTask():
         return models.build_model(cfg)
 
     def load_datasets(self, data_cfg, preprocessor_cfg):
-        #create train/val/test dataset
-        dataset = build_dataset(data_cfg, task_cfg=self.cfg, preprocessor_cfg=preprocessor_cfg)
-
-        train_idxs, val_idxs, test_idxs = split_dataset_idxs(dataset, data_cfg)
-
-        train_set = Subset(dataset, train_idxs)
-        val_set = Subset(dataset, val_idxs)
-        test_set = Subset(dataset, test_idxs)
-
-        if "test_data_cfg" in data_cfg:
-            test_dataset = build_dataset(data_cfg.test_data_cfg, task_cfg=self.cfg, preprocessor_cfg=preprocessor_cfg)
-            val_set = Subset(test_dataset, val_idxs)
-            test_set = Subset(test_dataset, test_idxs)
-
-        self.dataset = dataset
-        self.train_set = train_set
-        self.valid_set = val_set
-        self.test_set = test_set
+        pass
 
     def train_step(self, batch, model, criterion, optimizer, scheduler, device, grad_clip=None):
         #print(batch["input"].shape)
