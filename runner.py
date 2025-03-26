@@ -32,7 +32,6 @@ class Runner():
             exp_dir = cfg.get('results_dir', self.exp_dir)
             self.logger = SummaryWriter(exp_dir)
 
-        total_steps = self.cfg.total_steps
         
 
         if 'start_from_ckpt' in cfg:
@@ -71,7 +70,7 @@ class Runner():
         return optim
 
     def output_logs(self, progress, scheduler, train_logging_outs, val_logging_outs):
-        global_step = progress
+        global_step = progress.n
         train_logging_outs['lr'] = scheduler.get_lr()
         standard_metrics = ["lr", "loss", "grad_norm"]
         all_standard_metrics = {}
@@ -89,8 +88,8 @@ class Runner():
                 self.logger.add_scalar(k, v, global_step=global_step)
         self.task.output_logs(train_logging_outs, val_logging_outs, self.logger, global_step)
 
-    def get_valid_outs(self, valid_loader, model):
-        valid_logging_outs = self.task.get_valid_outs(valid_loader, self.criterion, self.device) 
+    def get_valid_outs(self, model, valid_loader):
+        valid_logging_outs = self.task.get_valid_outs(model, valid_loader, self.criterion, self.device) 
         return valid_logging_outs
 
     def save_checkpoint_last(self, states, best_val=False):
@@ -118,29 +117,29 @@ class Runner():
         if best_val:
             self.save_checkpoint_last(all_states, best_val)
         
-    def run_epoch(self, model, optim, scheduler, train_loader, valid_loader, total_loss, best_state):
+    def run_epoch(self, model, optim, scheduler, train_loader, valid_loader, progress, total_loss, best_state):
         epoch_loss = []
         best_model, best_val = best_state
         for batch in train_loader:
-            if self.progress.n >= self.progress.total:
+            if progress.n >= progress.total:
                 break
             model.train()
-            logging_out = self.task.train_step(batch, model, self.criterion, optim, self.scheduler, self.device, self.cfg.grad_clip)
+            logging_out = self.task.train_step(batch, model, self.criterion, optim, scheduler, self.device, self.cfg.grad_clip)
             total_loss.append(logging_out["loss"])
             epoch_loss.append(logging_out["loss"])
-            log_step = self.progress.n % self.cfg.log_step == 0 or self.progress.n == self.progress.total - 1
+            log_step = progress.n % self.cfg.log_step == 0 or progress.n == progress.total - 1
 
             ckpt_step = False
             if self.cfg.checkpoint_step > -1:
-                ckpt_step = self.progress.n % self.cfg.checkpoint_step == 0 or self.progress.n == self.progress.total - 1
+                ckpt_step = progress.n % self.cfg.checkpoint_step == 0 or progress.n == progress.total - 1
 
             valid_logging_outs = {}
             if ckpt_step or log_step:
                 model.eval()
-                valid_logging_outs = self.get_valid_outs(valid_loader)
+                valid_logging_outs = self.get_valid_outs(model, valid_loader)
             if log_step:
                 logging_out["loss"] = np.mean(total_loss)
-                self.output_logs(progress, logging_out, valid_logging_outs)
+                self.output_logs(progress, scheduler, logging_out, valid_logging_outs)
                 total_loss = []
             if ckpt_step:
                 better = False
@@ -151,12 +150,12 @@ class Runner():
                     metric = "loss"
                     better = valid_logging_outs[metric] < best_val[metric]
                 if better:
-                    self.save_checkpoints(best_val=True)
+                    self.save_checkpoints(model, optim, scheduler, best_val=True)
                     best_val = valid_logging_outs
                     best_model = copy.deepcopy(model)
                 else:
-                    self.save_checkpoints()
-            self.progress.update(1)
+                    self.save_checkpoints(model, optim, scheduler)
+            progress.update(1)
         return total_loss, (best_model, best_val)
 
     def scheduler_step(self):
@@ -175,10 +174,26 @@ class Runner():
             optim = self._init_optim(self.cfg, model)
             scheduler = build_scheduler(self.cfg.scheduler, optim)
 
-            train_loader = self.get_batch_iterator(self.task.train_datasets[i], self.cfg.train_batch_size, shuffle=self.cfg.shuffle, num_workers=self.cfg.num_workers, persistent_workers=self.cfg.num_workers>0)
-            val_loader = self.get_batch_iterator(self.task.val_datasets[i], self.cfg.valid_batch_size, shuffle=self.cfg.shuffle, num_workers=self.cfg.num_workers, persistent_workers=self.cfg.num_workers>0)
-            test_loader = self.get_batch_iterator(self.task.test_datasets[i], self.cfg.valid_batch_size, shuffle=self.cfg.shuffle)
+            train_loader = self.get_batch_iterator(self.task.train_datasets[i], self.cfg.train_batch_size, shuffle=self.cfg.shuffle, num_workers=self.cfg.num_workers, persistent_workers=False)
+            val_loader = self.get_batch_iterator(self.task.val_datasets[i], self.cfg.valid_batch_size, shuffle=self.cfg.shuffle, num_workers=self.cfg.num_workers, persistent_workers=False)
             best_model = self.train(model, optim, scheduler, train_loader, val_loader)
+
+            test_loader = self.get_batch_iterator(self.task.test_datasets[i], self.cfg.valid_batch_size, shuffle=self.cfg.shuffle, num_workers=self.cfg.num_workers, persistent_workers=False)
+
+            self.test(best_model, test_loader)
+
+            import pdb; pdb.set_trace()
+
+            if "results_dir" in self.cfg:
+                outs_to_write = test_outs.copy()
+                outs_to_write["exp_dir"] = self.exp_dir
+                Path(self.cfg.results_dir).mkdir(exist_ok=True, parents=True)
+                with open(os.path.join(self.cfg.results_dir, "results.json"), "w") as f:
+                    json.dump(outs_to_write,f)
+
+
+
+            import pdb; pdb.set_trace()
         pass
 
     def train(self, model, optim, scheduler, train_loader, valid_loader):
@@ -186,15 +201,17 @@ class Runner():
         best_val = {"loss": float("inf"), "roc_auc": 0}
         best_model = None
         best_state = (best_model, best_val)
+        total_steps = self.cfg.total_steps
         progress = tqdm(total=total_steps, dynamic_ncols=True, desc="overall")
         with logging_redirect_tqdm():
             if self.cfg.checkpoint_step > -1:
                 self.save_checkpoints(model, optim, scheduler)
             while progress.n < progress.total:
-                total_loss, best_state = self.run_epoch(model, train_loader, valid_loader, 
+                total_loss, best_state = self.run_epoch(model, optim, scheduler, train_loader, valid_loader, 
                                                         progress, total_loss, best_state)
                 best_model, best_val = best_state
             progress.close()
+
         return best_model
                 
     def format_test_outs(self, test_outs):
@@ -204,20 +221,10 @@ class Runner():
                 new_test_outs[k] = v
         return new_test_outs
 
-    def test(self, best_model):
-        test_loader = self.get_batch_iterator(self.task.test_set, self.cfg.valid_batch_size, shuffle=False)
-
+    def test(self, best_model, test_loader):
         test_outs = self.task.get_valid_outs(best_model, test_loader, self.criterion, self.device)
         formatted = self.format_test_outs(test_outs)
         log.info(f"test_results {formatted}")
-
-        if "results_dir" in self.cfg:
-            outs_to_write = test_outs.copy()
-            outs_to_write["exp_dir"] = self.exp_dir
-            Path(self.cfg.results_dir).mkdir(exist_ok=True, parents=True)
-            with open(os.path.join(self.cfg.results_dir, "results.json"), "w") as f:
-                json.dump(outs_to_write,f)
-
         return test_outs
 
     def get_batch_iterator(self, dataset, batch_size, **kwargs):

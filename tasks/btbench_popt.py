@@ -69,8 +69,9 @@ class BTBenchPopTTask(BaseTask):
         popt_dataset = BTBenchDecodingDataset(data_cfg, bt_train_datasets[0], preprocessor_cfg=preprocessor_cfg)#TODO
 
         train_datasets, val_datasets = [], []
-        for train_dataset in bt_train_datasets:
-            train_idxs, val_idxs, test_idxs = split_dataset_idxs(train_dataset, data_cfg)
+        for bt_train_dataset in bt_train_datasets:
+            train_idxs, val_idxs, test_idxs = split_dataset_idxs(bt_train_dataset, data_cfg)
+            train_dataset = BTBenchDecodingDataset(data_cfg, bt_train_dataset, preprocessor_cfg=preprocessor_cfg)
             train_datasets.append(Subset(train_dataset, train_idxs))
             val_datasets.append(Subset(train_dataset, val_idxs))
 
