@@ -32,8 +32,6 @@ class Runner():
             exp_dir = cfg.get('results_dir', self.exp_dir)
             self.logger = SummaryWriter(exp_dir)
 
-        
-
         if 'start_from_ckpt' in cfg:
             self.load_from_ckpt()
 
@@ -162,6 +160,7 @@ class Runner():
         pass
 
     def cross_val(self):
+        folds = []
         k_fold = len(self.task.train_datasets)
         for i in range(k_fold):
             model = self.task.build_model(self.model_cfg)
@@ -174,27 +173,27 @@ class Runner():
             optim = self._init_optim(self.cfg, model)
             scheduler = build_scheduler(self.cfg.scheduler, optim)
 
-            train_loader = self.get_batch_iterator(self.task.train_datasets[i], self.cfg.train_batch_size, shuffle=self.cfg.shuffle, num_workers=self.cfg.num_workers, persistent_workers=False)
-            val_loader = self.get_batch_iterator(self.task.val_datasets[i], self.cfg.valid_batch_size, shuffle=self.cfg.shuffle, num_workers=self.cfg.num_workers, persistent_workers=False)
+            train_loader = self.get_batch_iterator(self.task.train_datasets[i], self.cfg.train_batch_size, shuffle=self.cfg.shuffle, num_workers=self.cfg.num_workers, persistent_workers=self.cfg.num_workers>0)
+            val_loader = self.get_batch_iterator(self.task.val_datasets[i], self.cfg.valid_batch_size, shuffle=self.cfg.shuffle)
             best_model = self.train(model, optim, scheduler, train_loader, val_loader)
 
-            test_loader = self.get_batch_iterator(self.task.test_datasets[i], self.cfg.valid_batch_size, shuffle=self.cfg.shuffle, num_workers=self.cfg.num_workers, persistent_workers=False)
+            test_loader = self.get_batch_iterator(self.task.test_datasets[i], self.cfg.valid_batch_size, shuffle=self.cfg.shuffle)
 
-            self.test(best_model, test_loader)
+            test_results = self.test(best_model, test_loader)
+            train_results = self.test(best_model, train_loader)
 
-            import pdb; pdb.set_trace()
+            fold_results = { #TODO this is not generic. It expects the same metrics, no matter the task
+                          "test_accuracy": test_results["accuracy"],
+                          "test_roc_auc": test_results["roc_auc"],
+                          "train_roc_auc": train_results["roc_auc"],
+                          "train_accuracy": train_results["accuracy"],
+                        }
 
-            if "results_dir" in self.cfg:
-                outs_to_write = test_outs.copy()
-                outs_to_write["exp_dir"] = self.exp_dir
-                Path(self.cfg.results_dir).mkdir(exist_ok=True, parents=True)
-                with open(os.path.join(self.cfg.results_dir, "results.json"), "w") as f:
-                    json.dump(outs_to_write,f)
+            folds.append(fold_results)
 
-
-
-            import pdb; pdb.set_trace()
-        pass
+        Path(self.exp_dir).mkdir(exist_ok=True, parents=True)
+        with open(os.path.join(self.exp_dir, "results.json"), "w") as f:
+            json.dump(folds, f)
 
     def train(self, model, optim, scheduler, train_loader, valid_loader):
         total_loss = []

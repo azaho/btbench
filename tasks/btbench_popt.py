@@ -7,7 +7,7 @@ from tasks import register_task
 from tasks.base_task import BaseTask
 from tasks.batch_utils import pt_feature_extract_coords_collator
 from util.tensorboard_utils import plot_tensorboard_line
-from sklearn.metrics import roc_auc_score, f1_score
+from sklearn.metrics import roc_auc_score, f1_score, accuracy_score
 from tasks.utils import split_dataset_idxs
 from torch.utils.data import Subset
 
@@ -103,9 +103,11 @@ class BTBenchPopTTask(BaseTask):
         predicts = np.concatenate(predicts)
         roc_auc = roc_auc_score(labels, predicts)
         f1 = f1_score(labels, np.round(predicts))
+        accuracy = accuracy_score(labels, np.round(predicts))
         all_outs["loss"] /= len(valid_loader)
         all_outs["roc_auc"] = roc_auc
         all_outs["f1"] = f1
+        all_outs["accuracy"] = accuracy
         all_outs["predicts"] = predicts.tolist()
         all_outs["labels"] = labels.tolist()
         return all_outs
