@@ -28,7 +28,7 @@ like this:
     "submission_id": 5,  # Ensure this is unique
     "model_name": "Model name",
     "author": "John Doe",
-    "timestamp": time,
+    "timestamp": "time",
     "task": "sentence-onset",
     "accuracy_per_electrode": {
         "F2Ia1": {  # First electrode
