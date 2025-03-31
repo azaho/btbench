@@ -28,7 +28,7 @@ like this:
     "submission_id": 5,  # Ensure this is unique
     "model_name": "Model name",
     "author": "John Doe",
-    "timestamp": datetime.utcnow().isoformat(),
+    "timestamp": time,
     "task": "sentence-onset",
     "accuracy_per_electrode": {
         "F2Ia1": {  # First electrode
