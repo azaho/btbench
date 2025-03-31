@@ -25,11 +25,25 @@ like this:
 
 ```json
 {
-  "name": "Decoder A",
-  "rocAuc": 0.95,
-  "accuracy": 95,
-  "org": "MIT",
-  "date": "2025-02-11"
+    "submission_id": 5,  # Ensure this is unique
+    "model_name": "Model name",
+    "author": "John Doe",
+    "timestamp": datetime.utcnow().isoformat(),
+    "task": "sentence-onset",
+    "accuracy_per_electrode": {
+        "F2Ia1": {  # First electrode
+            "bin_0": 0.54, #time bins
+            "bin_1": 0.538,
+        },
+        "P3Ib2": {  # Second electrode
+            "bin_0": 0.52,
+            "bin_1": 0.525,
+        },
+        "AAAAA": {  # Third electrode
+            "bin_0": 0.512,
+            "bin_1": 0.545,
+        }
+    }
 }
 ```
 
