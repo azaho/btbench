@@ -1,10 +1,10 @@
 import torch
 from torch.utils.data import Dataset, DataLoader, Subset, ConcatDataset
 from sklearn.model_selection import KFold
-from subject_braintreebank import Subject
-from .btbench_datasets import BrainTreebankSubjectTrialBenchmarkDataset
+from braintreebank_subject import Subject
+from btbench_datasets import BrainTreebankSubjectTrialBenchmarkDataset
 import numpy as np
-from .btbench_config import *
+from btbench_config import *
 
 _all_subject_trials = [
     (1, 0), (1, 1), (1, 2), 
