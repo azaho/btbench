@@ -55,6 +55,47 @@ python single_electrode.py --subject SUBJECT_ID --trial TRIAL_ID --verbose
 ```
 This command will create a JSON file in the `eval_results` directory with the results, according to the schema in `leaderboard_schema.json`. You can change the `save_dir` argument to save the results to a different directory: `--save_dir SAVE_DIR`.
 
+## PopulationTransformer
+
+Pre-reqs:
+- Grab BrainBERT weights from [here](https://github.com/czlwang/BrainBERT) or from `victoria:/storage/czw/self_supervised_seeg/pretrained_weights/stft_large_pretrained.pth` 
+
+### Write the BTBench tasks
+- First, let's write all the BrainBERT embeddings for the BTBench tasks to disk
+```
+python3 -m data.write_multi_subject_multi_channel_btbench +data_prep=pretrain_multi_subj_multi_chan_template \
++data=subject_data_template ++data_prep.task_name=volume +preprocessor=multi_elec_spec_pretrained \
+++data_prep.electrodes=/storage/czw/btbench/electrode_selections/clean_laplacian.json \
+++data_prep.brain_runs=/storage/czw/btbench/trial_selections/test_trials.json \
+++data_prep.output_directory=/storage/czw/btbench/saved_examples/btbench_popt_embeds \
+++preprocessor.upstream_ckpt=/storage/czw/self_supervised_seeg/pretrained_weights/stft_large_pretrained.pth \
+++data.raw_brain_data_dir=/storage/czw/braintreebank_data/ \
+++data.movie_transcripts_dir=/storage/czw/braintreebank_data/transcripts
+```
+Important arguments:
+- `data_prep.electrodes` and `data_prep.brain_runs` are in this branch. You should swap out `czw` for your username.
+- `data.raw_brain_data_dir` --- the path to the braintreebank
+
+### Fine-tune the PopulationTransformer
+Pre-reqs:
+- Grab randomized_replacement_no_gaussian_blur.pth from `victoria:/storage/czw/victoria/MultiBrainBERT/outputs`
+```
+WEIGHTS=randomized_replacement_no_gaussian_blur; python3 run_cross_val.py +exp=multi_elec_feature_extract \
+++exp.runner.save_checkpoints=False ++model.frozen_upstream=False +task=btbench_popt \
++criterion=pt_feature_extract_coords_criterion +data=btbench_decode +preprocessor=empty_preprocessor \
++model=pt_downstream_model ++model.upstream_path=/storage/czw/PopTCameraReadyPrep/outputs/${WEIGHTS}.pth \
+++model.upstream_cfg.use_token_cls_head=True ++model.upstream_cfg.name=pt_model_custom \
+++data.btbench_cache_path=/storage/czw/btbench/saved_examples/btbench_popt_embeds ++data.k_fold=2 \ 
+++exp.runner.num_workers=32 ++exp.runner.total_steps=500 +data_prep=pretrain_multi_subj_multi_chan_template \
+++data_prep.electrodes=/storage/czw/btbench/electrode_selections/clean_laplacian.json \
+++data_prep.brain_runs=/storage/czw/btbench/trial_selections/test_trials.json \
+++data.raw_brain_data_dir=/storage/czw/braintreebank_data/ \
+++exp.runner.results_dir_root=/storage/czw/btbench/outputs/btbench_popt
+```
+Important arguments:
+- `model.upstream_path` --- the path to the pretrained PopulationTransformer
+- `data.btbench_cache_path` --- the path to the cached BrainBERT embeddings for the BTBench tasks. This should match the output path from the first command.
+
 ## Citation
 
 If you use BT-bench in your work, please cite the following paper:

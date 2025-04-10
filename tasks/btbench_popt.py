@@ -1,3 +1,5 @@
+import os
+import json
 import logging
 import numpy as np
 import models
@@ -22,28 +24,31 @@ class BTBenchPopTTask(BaseTask):
         import btbench_config
         from braintreebank_subject import BrainTreebankSubject
 
-        subject_id = 1
+        subject_id = int(data_cfg.subject[len("sub_"):])
 
         # use cache=True to load this trial's neural data into RAM, if you have enough memory!
         # It will make the loading process faster.
         subject = BrainTreebankSubject(subject_id, allow_corrupted=False, cache=True, dtype=torch.float32)
-        print("Electrode labels:", subject.electrode_labels) # list of electrode labels
+        #print("Electrode labels:", subject.electrode_labels) # list of electrode labels
 
         # Optionally, subset the electrodes to a specific set of electrodes.
-        subject.set_electrode_subset(['F3aOFa2', 'F3aOFa3', 'F3aOFa4', 'F3aOFa7']) # if you change this line when using cache=True, you need to clear the cache after: subject.clear_neural_data_cache()
-        print("Electrode labels after subsetting:", subject.electrode_labels)
+        selected = data_cfg.electrodes
 
-        trial_id = 0
+        subject.set_electrode_subset(selected) # if you change this line when using cache=True, you need to clear the cache after: subject.clear_neural_data_cache()
+        #print("Electrode labels after subsetting:", subject.electrode_labels)
+
+        assert len(data_cfg.brain_runs)==1
+        trial_id = int(data_cfg.brain_runs[0][len("trial"):])
 
         subject.load_neural_data(trial_id)
         window_from = None
         window_to = None # if None, the whole trial will be loaded
 
-        print("All neural data shape:")
-        print(subject.get_all_electrode_data(trial_id, window_from=window_from, window_to=window_to).shape) # (n_electrodes, n_samples). To get the data for a specific electrode, use subject.get_electrode_data(trial_id, electrode_label)
+        #print("All neural data shape:")
+        #print(subject.get_all_electrode_data(trial_id, window_from=window_from, window_to=window_to).shape) # (n_electrodes, n_samples). To get the data for a specific electrode, use subject.get_electrode_data(trial_id, electrode_label)
 
-        print("\nElectrode coordinates:")
-        print(subject.get_electrode_coordinates()) # L, P, I coordinates of the electrodes
+        #print("\nElectrode coordinates:")
+        #print(subject.get_electrode_coordinates()) # L, P, I coordinates of the electrodes
 
         #TODO move all the below somewhere sensible
         from btbench_datasets import BrainTreebankSubjectTrialBenchmarkDataset
@@ -51,7 +56,7 @@ class BTBenchPopTTask(BaseTask):
         # Options for eval_name (from the BTBench paper):
         #   frame_brightness, global_flow, local_flow, global_flow_angle, local_flow_angle, face_num, volume, pitch, delta_volume, 
         #   delta_pitch, speech, onset, gpt2_surprisal, word_length, word_gap, word_index, word_head_pos, word_part_speech, speaker
-        eval_name = "volume"
+        eval_name = data_cfg.eval_name
 
         # if True, the dataset will output the indices of the samples in the neural data in a tuple: (index_from, index_to); 
         # if False, the dataset will output the neural data directly
@@ -61,12 +66,11 @@ class BTBenchPopTTask(BaseTask):
         end_neural_data_after_word_onset = btbench_config.SAMPLING_RATE * 1 # the number of samples to end the neural data after each word onset -- here we use 1 second
 
         import btbench_train_test_splits
-        bt_train_datasets, bt_test_datasets = btbench_train_test_splits.generate_splits_SS_SM(subject, trial_id, eval_name, add_other_trials=False, k_folds=5, dtype=torch.float32, 
+        bt_train_datasets, bt_test_datasets = btbench_train_test_splits.generate_splits_SS_SM(subject, trial_id, eval_name, add_other_trials=False, k_folds=data_cfg.k_fold, dtype=torch.float32, #TODO take folds as argument
                         # Put the dataset parameters here
                         output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset)
 
         from datasets.btbench_decode import BTBenchDecodingDataset
-        popt_dataset = BTBenchDecodingDataset(data_cfg, bt_train_datasets[0], preprocessor_cfg=preprocessor_cfg)#TODO
 
         train_datasets, val_datasets = [], []
         for bt_train_dataset in bt_train_datasets:
@@ -101,12 +105,18 @@ class BTBenchPopTTask(BaseTask):
         labels = np.array([x for y in labels for x in y])
         predicts = [np.array([p]) if len(p.shape)==0 else p for p in predicts]
         predicts = np.concatenate(predicts)
-        roc_auc = roc_auc_score(labels, predicts)
-        f1 = f1_score(labels, np.round(predicts))
-        accuracy = accuracy_score(labels, np.round(predicts))
-        all_outs["loss"] /= len(valid_loader)
+
+        roc_auc = -1
+        f1 = -1
+        if len(set(labels)) <= 2:
+            roc_auc = roc_auc_score(labels, predicts)
+            f1 = f1_score(labels, np.round(predicts))
+
         all_outs["roc_auc"] = roc_auc
         all_outs["f1"] = f1
+
+        accuracy = accuracy_score(labels, np.round(predicts))
+        all_outs["loss"] /= len(valid_loader)
         all_outs["accuracy"] = accuracy
         all_outs["predicts"] = predicts.tolist()
         all_outs["labels"] = labels.tolist()
@@ -118,10 +128,11 @@ class BTBenchPopTTask(BaseTask):
     def output_logs(self, train_logging_outs, val_logging_outs, writer, global_step):
         val_auc_roc = val_logging_outs["roc_auc"]
         val_f1 = val_logging_outs["f1"]
+        val_accuracy = val_logging_outs["accuracy"]
         if writer is not None:
             writer.add_scalar("valid_roc_auc", val_auc_roc, global_step)
             writer.add_scalar("valid_f1", val_f1, global_step)
-        log.info(f'valid_roc_auc: {val_auc_roc}, valid_f1: {val_f1}')
+        log.info(f'valid_roc_auc: {val_auc_roc}, valid_f1: {val_f1}, valid_accuracy: {val_accuracy}')
 
         #image = train_logging_outs["images"]["wav"]
         #label = train_logging_outs["images"]["wav_label"]

@@ -250,7 +250,7 @@ class TransformerEncoderInput(nn.Module):
         self.in_proj = nn.Linear(in_features=cfg.input_dim, out_features=cfg.hidden_dim)
         if "position_encoding" in self.cfg and self.cfg.position_encoding == "brain_position_encoding":
             self.positional_encoding = BrainPositionalEncoding(self.cfg.hidden_dim)
-        elif "position_encoding" in self.cfg and self.cfg.position_encoding == "debug_multi_subj_position_encoding":
+        elif "position_encoding" in self.cfg and self.cfg.position_encoding == "multi_subj_position_encoding":
             self.positional_encoding = MultiSubjBrainPositionalEncoding(self.cfg.hidden_dim)
         elif "position_encoding" in self.cfg and self.cfg.position_encoding == "twins_position_encoding":
             self.positional_encoding = TwinsPositionEncoding(self.cfg.hidden_dim)
@@ -263,6 +263,7 @@ class TransformerEncoderInput(nn.Module):
         elif "position_encoding" in self.cfg and self.cfg.position_encoding == "region_encoding":
             self.positional_encoding = RegionPositionEncoding(self.cfg.hidden_dim)
         else:
+            print("Using default position encoding")
             self.positional_encoding = PositionalEncoding(self.cfg.hidden_dim)
         self.layer_norm = nn.LayerNorm(cfg.hidden_dim)
         self.dropout = nn.Dropout(p=dropout)

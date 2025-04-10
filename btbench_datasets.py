@@ -183,7 +183,7 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
         est_idx = int(row['est_idx']) - int(self.start_neural_data_before_word_onset)
         est_end_idx = int(row['est_idx']) + int(self.end_neural_data_after_word_onset)
         input = self._get_neural_data(est_idx, est_end_idx)
-        return input, self.extreme_labels[idx].item()
+        return input, self.extreme_labels[idx].item(), est_idx, est_end_idx
 
     def _onset_speech__getitem__(self, idx):
         if idx % 2 == 0: # even indices are positive samples
@@ -192,14 +192,14 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
             est_idx = int(row['est_idx']) - int(self.start_neural_data_before_word_onset)
             est_end_idx = int(row['est_idx']) + int(self.end_neural_data_after_word_onset)
             input = self._get_neural_data(est_idx, est_end_idx)
-            return input, 1
+            return input, 1, est_idx, est_end_idx
         else: # odd indices are negative samples
             item_index = self.negative_indices[idx//2]
             row = self.nonverbal_df.iloc[item_index]
             est_idx = int(row['est_idx'])
             est_end_idx = est_idx + self.end_neural_data_after_word_onset + self.start_neural_data_before_word_onset
             input = self._get_neural_data(est_idx, est_end_idx)
-            return input, 0
+            return input, 0, est_idx, est_end_idx
         
     def _classification__getitem__(self, idx):
         word_index = self.balanced_indices[idx]
@@ -207,17 +207,18 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
         est_idx = int(row['est_idx']) - int(self.start_neural_data_before_word_onset)
         est_end_idx = int(row['est_idx']) + int(self.end_neural_data_after_word_onset)
         input = self._get_neural_data(est_idx, est_end_idx)
-        return input, self.class_labels[idx].item()
+        return input, self.class_labels[idx].item(), est_idx, est_end_idx
         
         
     def __len__(self):
         return self.n_samples
     def __getitem__(self, idx):
         if self.eval_name in single_float_variables or self.eval_name == "word_gap":
-            return self._simple_float_variable__getitem__(idx)
+            data, label, est_idx, est_end_idx = self._simple_float_variable__getitem__(idx)
         elif self.eval_name in four_way_cardinal_direction_variables or self.eval_name in ["face_num", "word_index", "word_head_pos", "word_part_speech", "speaker"]:
-            return self._classification__getitem__(idx)
+            data, label, est_idx, est_end_idx = self._classification__getitem__(idx)
         elif self.eval_name in ["onset", "speech"]:
-            return self._onset_speech__getitem__(idx)
+            data, label, est_idx, est_end_idx = self._onset_speech__getitem__(idx) 
         else:
             raise ValueError(f"Invalid eval_name: {self.eval_name}")
+        return data, label, self.subject_id, self.trial_id, est_idx, est_end_idx

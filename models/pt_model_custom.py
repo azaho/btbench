@@ -5,10 +5,10 @@ from models.base_model import BaseModel
 from models.transformer_encoder_input import TransformerEncoderInput
 from models.spec_prediction_head import SpecPredictionHead
 
-@register_model("debug_pt_model_custom")
-class DebugPtModelCustom(BaseModel):
+@register_model("pt_model_custom")
+class PtModelCustom(BaseModel):
     def __init__(self):
-        super(DebugPtModelCustom, self).__init__()
+        super(PtModelCustom, self).__init__()
 
     def forward(self, inputs, src_key_mask, positions, intermediate_rep=False, rep_from_layer=-1):
         input_specs, pos = self.input_encoding(inputs, positions)

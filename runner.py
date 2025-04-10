@@ -141,12 +141,10 @@ class Runner():
                 total_loss = []
             if ckpt_step:
                 better = False
-                if "roc_auc" in valid_logging_outs:
-                    metric = "roc_auc"
-                    better = valid_logging_outs[metric] > best_val[metric]
-                else:
-                    metric = "loss"
-                    better = valid_logging_outs[metric] < best_val[metric]
+
+                metric = "loss"
+                better = valid_logging_outs[metric] < best_val[metric]
+
                 if better:
                     self.save_checkpoints(model, optim, scheduler, best_val=True)
                     best_val = valid_logging_outs
@@ -182,17 +180,12 @@ class Runner():
             test_results = self.test(best_model, test_loader)
             train_results = self.test(best_model, train_loader)
 
-            fold_results = { #TODO this is not generic. It expects the same metrics, no matter the task
-                          "test_accuracy": test_results["accuracy"],
-                          "test_roc_auc": test_results["roc_auc"],
-                          "train_roc_auc": train_results["roc_auc"],
-                          "train_accuracy": train_results["accuracy"],
-                        }
+            fold_results = {f"test_{k}":v for k,v in test_results.items()}
 
             folds.append(fold_results)
 
-        Path(self.exp_dir).mkdir(exist_ok=True, parents=True)
-        with open(os.path.join(self.exp_dir, "results.json"), "w") as f:
+        Path(self.cfg.results_dir).mkdir(exist_ok=True, parents=True)
+        with open(os.path.join(self.cfg.results_dir, "results.json"), "w") as f:
             json.dump(folds, f)
 
     def train(self, model, optim, scheduler, train_loader, valid_loader):

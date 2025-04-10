@@ -1,9 +1,9 @@
-name: debug_pt_downstream_model
+name: pt_downstream_model
 hidden_dim: 512
 input_dim: 768
 layer_activation: "gelu"
 upstream_cfg: 
-    position_encoding: "debug_multi_subj_position_encoding"
+    position_encoding: "multi_subj_position_encoding"
     n_head: 8
     n_layers: 6
     hidden_dim: 512

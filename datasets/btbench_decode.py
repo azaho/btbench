@@ -20,8 +20,6 @@ log = logging.getLogger(__name__)
 class BTBenchDecodingDataset(data.Dataset):
     def __init__(self, cfg, btbench_dataset, preprocessor_cfg=None):
         super().__init__()
-        
-
         self.btbench_dataset = btbench_dataset
         self.extracter = build_preprocessor(preprocessor_cfg)
         self.cfg = cfg
@@ -35,13 +33,21 @@ class BTBenchDecodingDataset(data.Dataset):
         with open(electrodes_path, 'r') as f:
             ordered_electrodes = json.load(f)
 
+        #check that electrode ordering is the same
+        uniq_subjects = set([t[1] for t in self.manifest])
+        for subject in uniq_subjects:
+            assert ordered_electrodes[subject] == cfg.electrodes#the RHS is what was used in subsetting the electrodes
+
         elec2absolute_id = {subj:{elec:idx for idx,elec in enumerate(elecs)} for subj,elecs in ordered_electrodes.items()}
 
         localization_root = os.path.join(btbench_cache_path, "localization")
         all_localization_dfs = {}
         for fpath in glob.glob(f'{localization_root}/*'):
             subject = os.path.split(fpath)[1].split(".")[0]
-            all_localization_dfs[subject] = pd.read_csv(fpath)
+            df = pd.read_csv(fpath)
+            selected_electrodes = ordered_electrodes[subject]
+            df = df[df.Electrode.isin(selected_electrodes)] #These are all the electrodes, so let's trim them so they are just the ones that we've actually cached data for
+            all_localization_dfs[subject] = df
 
         if "sub_sample_electrodes" in cfg:
             sub_sample_electrodes_path = cfg.sub_sample_electrodes

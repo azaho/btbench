@@ -1,9 +1,12 @@
 # NOTE: Settings in this file have global effect on the code. All parts of the pipeline have to run with the same settings.
 # If you want to change a setting, you have to rerun all parts of the pipeline with the new setting. Otherwise, things will break.
 
-ROOT_DIR = "/om2/user/zaho/braintreebank/braintreebank" # Root directory for the braintreebank data
-SAVE_SUBJECT_TRIAL_DF_DIR = "btbench_subject_metadata"
-SAVE_SPEECH_SELECTIVITY_DATA_DIR = "btbench_speech_selectivity_data"
+#ROOT_DIR = "/om2/user/zaho/braintreebank/braintreebank" # Root directory for the braintreebank data
+ROOT_DIR = "/storage/czw/braintreebank_data" # Root directory for the braintreebank data
+#SAVE_SUBJECT_TRIAL_DF_DIR = "btbench_subject_metadata"
+SAVE_SUBJECT_TRIAL_DF_DIR = "/storage/czw/btbench/btbench_subject_metadata"
+#SAVE_SPEECH_SELECTIVITY_DATA_DIR = "btbench_speech_selectivity_data"
+SAVE_SPEECH_SELECTIVITY_DATA_DIR = "/storage/czw/btbench/btbench_speech_selectivity_data"
 SAMPLING_RATE = 2048 # Sampling rate
 
 START_NEURAL_DATA_BEFORE_WORD_ONSET = 0.5 # in seconds
