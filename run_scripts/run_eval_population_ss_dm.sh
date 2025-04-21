@@ -2,9 +2,9 @@
 #SBATCH --job-name=eval_population          # Name of the job
 #SBATCH --ntasks=1             # 8 tasks total
 #SBATCH --cpus-per-task=4    # Request 8 CPU cores per GPU
-#SBATCH --mem=128G
+#SBATCH --mem=512G
 #SBATCH -t 12:00:00         # total run time limit (HH:MM:SS) (increased to 24 hours)
-#SBATCH --array=1483-1977  # 285 if doing mini btbench
+#SBATCH --array=1-1482  # 285 if doing mini btbench
 #SBATCH --output logs/%A_%a.out # STDOUT
 #SBATCH --error logs/%A_%a.err # STDERR
 #SBATCH -p use-everything
@@ -58,6 +58,6 @@ SUBJECT=${subjects[$PAIR_IDX]}
 TRIAL=${trials[$PAIR_IDX]}
 PREPROCESS=${preprocess[$PREPROCESS_IDX]}
 
-echo "Running eval for eval $EVAL_NAME, subject $SUBJECT, trial $TRIAL, preprocess $PREPROCESS"
+echo "Running eval for eval $EVAL_NAME, subject $SUBJECT, trial $TRIAL, preprocess $PREPROCESS (SS_DM)"
 # Add the -u flag to Python to force unbuffered output
-python -u eval_population.py --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL --preprocess $PREPROCESS --verbose
+python -u eval_population.py --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL --preprocess $PREPROCESS --verbose --splits_type SS_DM --save_dir eval_results_new_ss_dm

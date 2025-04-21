@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=4    # Request 8 CPU cores per GPU
 #SBATCH --mem=128G
 #SBATCH -t 12:00:00         # total run time limit (HH:MM:SS) (increased to 24 hours)
-#SBATCH --array=1483-1977  # 285 if doing mini btbench
+#SBATCH --array=1-1482  # 285 if doing mini btbench
 #SBATCH --output logs/%A_%a.out # STDOUT
 #SBATCH --error logs/%A_%a.err # STDERR
 #SBATCH -p use-everything
@@ -45,19 +45,26 @@ declare -a preprocess=(
     "fft_realimag"
     "none" 
 )
+declare -a nperseg=(
+    128
+    64
+)
 
 
 # Calculate indices for this task
-EVAL_IDX=$(( ($SLURM_ARRAY_TASK_ID-1) % ${#eval_names[@]} ))
-PAIR_IDX=$(( ($SLURM_ARRAY_TASK_ID-1) / ${#eval_names[@]} % ${#subjects[@]} ))
-PREPROCESS_IDX=$(( ($SLURM_ARRAY_TASK_ID-1) / ${#eval_names[@]} / ${#subjects[@]} ))
+ID=$(( $SLURM_ARRAY_TASK_ID-1+1482 ))
+EVAL_IDX=$(( ($ID) % ${#eval_names[@]} ))
+PAIR_IDX=$(( ($ID) / ${#eval_names[@]} % ${#subjects[@]} ))
+PREPROCESS_IDX=$(( ($ID) / ${#eval_names[@]} / ${#subjects[@]} % ${#preprocess[@]} ))
+NPERSEG_IDX=$(( ($ID) / ${#eval_names[@]} / ${#subjects[@]} / ${#preprocess[@]} ))
 
 # Get subject, trial and eval name for this task
 EVAL_NAME=${eval_names[$EVAL_IDX]}
 SUBJECT=${subjects[$PAIR_IDX]}
 TRIAL=${trials[$PAIR_IDX]}
 PREPROCESS=${preprocess[$PREPROCESS_IDX]}
+NPERSEG=${nperseg[$NPERSEG_IDX]}
 
 echo "Running eval for eval $EVAL_NAME, subject $SUBJECT, trial $TRIAL, preprocess $PREPROCESS"
 # Add the -u flag to Python to force unbuffered output
-python -u eval_population.py --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL --preprocess $PREPROCESS --verbose
+python -u eval_population.py --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL --preprocess $PREPROCESS --verbose --nperseg $NPERSEG --only_1second

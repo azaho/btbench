@@ -13,6 +13,7 @@ eval_results_ss_dm/
 eval_results_ss_sm_per_bin/
 
 r/
+logs/
 figures/.*
 eval_results_old/*.DS_Store
 .DS_Store

@@ -13,6 +13,8 @@ parser.add_argument('--subject', type=int, required=True, help='Subject ID')
 parser.add_argument('--trial', type=int, required=True, help='Trial ID')
 parser.add_argument('--verbose', action='store_true', help='Whether to print progress')
 parser.add_argument('--save_dir', type=str, default='eval_results', help='Directory to save results')
+parser.add_argument('--only_1second', action='store_true', help='Whether to only evaluate on 1 second after word onset')
+parser.add_argument('--seed', type=int, default=42, help='Random seed')
 args = parser.parse_args()
 
 eval_names = args.eval_name.split(',') if ',' in args.eval_name else [args.eval_name]
@@ -20,10 +22,16 @@ subject_id = args.subject
 trial_id = args.trial 
 verbose = bool(args.verbose)
 save_dir = args.save_dir
+only_1second = bool(args.only_1second)
+seed = args.seed
 
-bins_start_before_word_onset_seconds = 0.5
-bins_end_after_word_onset_seconds = 2.5
+bins_start_before_word_onset_seconds = 0.5 if not only_1second else 0
+bins_end_after_word_onset_seconds = 2.5 if not only_1second else 1
 bin_size_seconds = 0.125
+
+# Set random seeds for reproducibility
+np.random.seed(seed)
+torch.manual_seed(seed)
 
 # use cache=True to load this trial's neural data into RAM, if you have enough memory!
 # It will make the loading process faster.
@@ -49,15 +57,18 @@ for eval_name in eval_names:
                                                                                         start_neural_data_before_word_onset=int(bins_start_before_word_onset_seconds*btbench_config.SAMPLING_RATE), 
                                                                                         end_neural_data_after_word_onset=int(bins_end_after_word_onset_seconds*btbench_config.SAMPLING_RATE))
 
-        # Loop over all time bins
-        bin_starts = np.arange(-bins_start_before_word_onset_seconds, bins_end_after_word_onset_seconds, bin_size_seconds)
-        bin_ends = bin_starts + bin_size_seconds
-        # Add a time bin for the whole window
-        bin_starts = np.append(bin_starts, -bins_start_before_word_onset_seconds)
-        bin_ends = np.append(bin_ends, bins_end_after_word_onset_seconds)
-        # Add a time bin for 1 second after the word onset
-        bin_starts = np.append(bin_starts, 0)
-        bin_ends = np.append(bin_ends, 1)
+        if only_1second:
+            bin_starts, bin_ends = [0], [1]
+        else:
+            # Loop over all time bins
+            bin_starts = np.arange(-bins_start_before_word_onset_seconds, bins_end_after_word_onset_seconds, bin_size_seconds)
+            bin_ends = bin_starts + bin_size_seconds
+            # Add a time bin for the whole window
+            bin_starts = np.append(bin_starts, -bins_start_before_word_onset_seconds)
+            bin_ends = np.append(bin_ends, bins_end_after_word_onset_seconds)
+            # Add a time bin for 1 second after the word onset
+            bin_starts = np.append(bin_starts, 0)
+            bin_ends = np.append(bin_ends, 1)
 
         for bin_start, bin_end in zip(bin_starts, bin_ends):
             data_idx_from = int((bin_start+bins_start_before_word_onset_seconds)*btbench_config.SAMPLING_RATE)
@@ -86,7 +97,7 @@ for eval_name in eval_names:
                 X_test = scaler.transform(X_test)
 
                 # Train logistic regression
-                clf = LogisticRegression(random_state=42, max_iter=10000, tol=1e-3)
+                clf = LogisticRegression(random_state=seed, max_iter=10000, tol=1e-3)
                 clf.fit(X_train, y_train)
 
                 # Evaluate model
@@ -150,7 +161,9 @@ for eval_name in eval_names:
             f"{subject.subject_identifier}_{trial_id}": {
                 "electrode": results_electrode
             }
-        }
+        },
+
+        "random_seed": seed
     }
     os.makedirs(save_dir, exist_ok=True) # Create save directory if it doesn't exist
     with open(f"{save_dir}/linear_regression_electrode_{subject.subject_identifier}_{trial_id}_{eval_name}.json", "w") as f:

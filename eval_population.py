@@ -13,7 +13,11 @@ parser.add_argument('--subject', type=int, required=True, help='Subject ID')
 parser.add_argument('--trial', type=int, required=True, help='Trial ID')
 parser.add_argument('--verbose', action='store_true', help='Whether to print progress')
 parser.add_argument('--save_dir', type=str, default='eval_results', help='Directory to save results')
-parser.add_argument('--preprocess', type=str, choices=['fft', 'spectrogram', 'none'], default='', help='Preprocessing to apply to neural data (fft or spectrogram)')
+parser.add_argument('--preprocess', type=str, choices=['fft_absangle', 'fft_realimag', 'fft_abs', 'none'], default='', help='Preprocessing to apply to neural data (fft_absangle, fft_realimag, fft_abs or none)')
+parser.add_argument('--splits_type', type=str, choices=['SS_SM', 'SS_DM'], default='SS_SM', help='Type of splits to use (SS_SM or DM_SM)')
+parser.add_argument('--seed', type=int, default=42, help='Random seed')
+parser.add_argument('--nperseg', type=int, default=256, help='Length of each segment for FFT calculation')
+parser.add_argument('--only_1second', action='store_true', help='Whether to only evaluate on 1 second after word onset')
 args = parser.parse_args()
 
 eval_names = args.eval_name.split(',') if ',' in args.eval_name else [args.eval_name]
@@ -22,17 +26,29 @@ trial_id = args.trial
 verbose = bool(args.verbose)
 save_dir = args.save_dir
 preprocess = args.preprocess
+splits_type = args.splits_type
+seed = args.seed
+nperseg = args.nperseg
+only_1second = bool(args.only_1second)
 
-bins_start_before_word_onset_seconds = 0.5
-bins_end_after_word_onset_seconds = 2.5
+# Set random seeds for reproducibility
+np.random.seed(seed)
+torch.manual_seed(seed)
+
+bins_start_before_word_onset_seconds = 0.5 if not only_1second else 0
+bins_end_after_word_onset_seconds = 2.5 if not only_1second else 1
 bin_size_seconds = 0.125
 
-# Loop over all time bins
-bin_starts = np.arange(-bins_start_before_word_onset_seconds, bins_end_after_word_onset_seconds, bin_size_seconds)
-bin_ends = bin_starts + bin_size_seconds
-# Add a time bin for the whole window and for 1 second after the word onset
-bin_starts = [0, -bins_start_before_word_onset_seconds][::-1] + list(bin_starts)
-bin_ends = [1, bins_end_after_word_onset_seconds][::-1] + list(bin_ends)
+if not only_1second:
+    # Loop over all time bins
+    bin_starts = np.arange(-bins_start_before_word_onset_seconds, bins_end_after_word_onset_seconds, bin_size_seconds)
+    bin_ends = bin_starts + bin_size_seconds
+    # Add a time bin for the whole window and for 1 second after the word onset
+    bin_starts = [0, -bins_start_before_word_onset_seconds][::-1] + list(bin_starts)
+    bin_ends = [1, bins_end_after_word_onset_seconds][::-1] + list(bin_ends)
+else:
+    bin_starts = [0]
+    bin_ends = [1]
 
 
 max_log_priority = -1 if not verbose else 1
@@ -45,6 +61,7 @@ def log(message, priority=0, indent=0):
     ram_usage = process.memory_info().rss / 1024**3
     print(f"[{current_time} gpu {gpu_memory_reserved:04.1f}G ram {ram_usage:05.1f}G] ({priority}) {' '*4*indent}{message}")
 
+# OLD
 def calculate_fft(electrode_data, spectrogram=True):
     """Calculate FFT features for electrode data.
     
@@ -80,6 +97,49 @@ def calculate_fft(electrode_data, spectrogram=True):
     
     return x
 
+from scipy import signal
+import numpy as np
+def compute_stft(data, fs=2048, preprocess="fft_abs"):
+    """Compute spectrogram with both power and phase information for a single trial of data.
+    
+    Args:
+        data (numpy.ndarray): Input voltage data of shape (n_channels, n_samples) or (batch_size, n_channels, n_samples)
+        fs (int): Sampling frequency in Hz
+        max_freq (int): Maximum frequency to include in Hz
+    
+    Returns:
+        numpy.ndarray: Real-valued spectrogram representation containing both magnitude and phase information
+                      Shape: (..., 2, n_freqs, n_times) where the 2 represents [magnitude, phase]
+    """
+    # For 1 second of data at 2048Hz, we'll use larger window
+    #nperseg = 256  # 125 ms window
+    #nperseg //= 2
+    #noverlap = nperseg // 4 * 3 # 75% overlap
+    noverlap = 0 # 0% overlap
+    
+    # Use STFT to get complex-valued coefficients
+    f, t, Zxx = signal.stft(
+        data,
+        fs=fs, 
+        nperseg=nperseg,
+        noverlap=noverlap,
+        window='boxcar'
+    ) # Zxx shape: (n_channels, n_freqs, n_times)
+
+
+    if preprocess == "fft_absangle":
+        # Split complex values into magnitude and phase
+        magnitude = np.abs(Zxx)
+        phase = np.angle(Zxx)
+        # Stack magnitude and phase along a new axis
+        return np.stack([magnitude, phase], axis=-2)
+    elif preprocess == "fft_realimag":
+        real = np.real(Zxx)
+        imag = np.imag(Zxx)
+        return np.stack([real, imag], axis=-2)
+    else:
+        magnitude = np.abs(Zxx)
+        return magnitude
 
 
 # use cache=True to load this trial's neural data into RAM, if you have enough memory!
@@ -100,10 +160,19 @@ for eval_name in eval_names:
         log("All electrodes loaded", priority=0)
 
     # train_datasets and test_datasets are arrays of length k_folds, each element is a BrainTreebankSubjectTrialBenchmarkDataset for the train/test split
-    train_datasets, test_datasets = btbench_train_test_splits.generate_splits_SS_SM(subject, trial_id, eval_name, add_other_trials=False, k_folds=5, dtype=torch.float32, 
-                                                                                    output_indices=False, 
-                                                                                    start_neural_data_before_word_onset=int(bins_start_before_word_onset_seconds*btbench_config.SAMPLING_RATE), 
-                                                                                    end_neural_data_after_word_onset=int(bins_end_after_word_onset_seconds*btbench_config.SAMPLING_RATE))
+    if splits_type == "SS_SM":
+        train_datasets, test_datasets = btbench_train_test_splits.generate_splits_SS_SM(subject, trial_id, eval_name, add_other_trials=False, k_folds=5, dtype=torch.float32, 
+                                                                                        output_indices=False, 
+                                                                                        start_neural_data_before_word_onset=int(bins_start_before_word_onset_seconds*btbench_config.SAMPLING_RATE), 
+                                                                                        end_neural_data_after_word_onset=int(bins_end_after_word_onset_seconds*btbench_config.SAMPLING_RATE))
+    elif splits_type == "SS_DM":
+        train_datasets, test_datasets = btbench_train_test_splits.generate_splits_SS_DM(subject, trial_id, eval_name, max_other_trials=3, dtype=torch.float32, 
+                                                                                        output_indices=False, 
+                                                                                        start_neural_data_before_word_onset=int(bins_start_before_word_onset_seconds*btbench_config.SAMPLING_RATE), 
+                                                                                        end_neural_data_after_word_onset=int(bins_end_after_word_onset_seconds*btbench_config.SAMPLING_RATE))
+        train_datasets = [train_datasets]
+        test_datasets = [test_datasets]
+
 
     for bin_start, bin_end in zip(bin_starts, bin_ends):
         data_idx_from = int((bin_start+bins_start_before_word_onset_seconds)*btbench_config.SAMPLING_RATE)
@@ -129,10 +198,10 @@ for eval_name in eval_names:
             X_test = np.array([item[0][:, data_idx_from:data_idx_to] for item in test_dataset])
             y_test = np.array([item[1] for item in test_dataset])
 
-            if preprocess in ['fft', 'spectrogram']:
+            if preprocess in ['fft_absangle', 'fft_realimag', 'fft_abs']:
                 log(f"Calculating {preprocess}...", priority=0, indent=1)
-                X_train = calculate_fft(X_train, spectrogram=preprocess == 'spectrogram')
-                X_test = calculate_fft(X_test, spectrogram=preprocess == 'spectrogram')
+                X_train = compute_stft(X_train, preprocess=preprocess)
+                X_test = compute_stft(X_test, preprocess=preprocess)
 
             # Flatten the data after preprocessing in-place
             X_train = X_train.reshape(X_train.shape[0], -1)
@@ -148,7 +217,7 @@ for eval_name in eval_names:
             log(f"Training model...", priority=0, indent=1)
 
             # Train logistic regression
-            clf = LogisticRegression(random_state=42, max_iter=10000, tol=1e-3)
+            clf = LogisticRegression(random_state=seed, max_iter=10000, tol=1e-3)
             clf.fit(X_train, y_train)
 
             # Evaluate model
@@ -213,10 +282,14 @@ for eval_name in eval_names:
             f"{subject.subject_identifier}_{trial_id}": {
                 "population": results_population
             }
-        }
+        },
+
+        "nperseg": nperseg,
+        "only_1second": only_1second,
+        "seed": seed
     }
 
-    file_save_dir = f"{save_dir}/linear_{preprocess if preprocess != 'none' else 'voltage'}"
+    file_save_dir = f"{save_dir}/linear_{preprocess if preprocess != 'none' else 'voltage'}{'_nperseg' + str(nperseg) if nperseg != 256 else ''}"
     os.makedirs(file_save_dir, exist_ok=True) # Create save directory if it doesn't exist
     file_save_path = f"{file_save_dir}/population_{subject.subject_identifier}_{trial_id}_{eval_name}.json"
 

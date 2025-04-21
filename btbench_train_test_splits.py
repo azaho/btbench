@@ -45,7 +45,7 @@ def generate_splits_DS_DM(all_subjects, test_subject_id, test_trial_id, eval_nam
 
     Returns:
         tuple: A tuple containing:
-            - train_dataset (ConcatDataset): Combined dataset of all training subjects and trials
+            - train_datasets (list): List of training datasets
             - test_dataset (Dataset): Dataset for the test subject and trial
     """
     test_dataset = BrainTreebankSubjectTrialBenchmarkDataset(all_subjects[test_subject_id], test_trial_id, dtype=dtype, eval_name=eval_name, 
@@ -58,8 +58,8 @@ def generate_splits_DS_DM(all_subjects, test_subject_id, test_trial_id, eval_nam
                                                                   output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset)
         train_datasets.append(train_dataset)
 
-    train_dataset = ConcatDataset(train_datasets)
-    return train_dataset, test_dataset
+    #train_dataset = ConcatDataset(train_datasets)
+    return train_datasets, test_dataset
 
 
 def generate_splits_DS_SM(all_subjects, test_subject_id, test_trial_id, eval_name, dtype=torch.float32,
@@ -88,7 +88,7 @@ def generate_splits_DS_SM(all_subjects, test_subject_id, test_trial_id, eval_nam
 
     Returns:
         tuple: A tuple containing:
-            - train_dataset (ConcatDataset): Combined dataset of all training subjects for the test trial
+            - train_datasets (list): List of training datasets
             - test_dataset (Dataset): Dataset for the test subject and trial
     """
     trial_subject_mapping = {}
@@ -105,8 +105,8 @@ def generate_splits_DS_SM(all_subjects, test_subject_id, test_trial_id, eval_nam
     for other_subject_id in other_subject_id_list:
         train_datasets.append(BrainTreebankSubjectTrialBenchmarkDataset(all_subjects[other_subject_id], test_trial_id, dtype=dtype, eval_name=eval_name, 
                                                                         output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset))
-    train_dataset = ConcatDataset(train_datasets)
-    return train_dataset, test_dataset
+    #train_dataset = ConcatDataset(train_datasets)
+    return train_datasets, test_dataset
 
 
 def generate_subject_trials_for_SS_DM():
@@ -170,7 +170,7 @@ def generate_splits_SS_DM(test_subject, test_trial_id, eval_name, dtype=torch.fl
 
     Returns:
         tuple: A tuple containing:
-            - train_dataset (ConcatDataset): Combined dataset of all training trials
+            - train_datasets (list): List of training datasets
             - test_dataset (Dataset): Dataset for the test trial
     """
     # Define subject-to-trials mapping
@@ -201,8 +201,8 @@ def generate_splits_SS_DM(test_subject, test_trial_id, eval_name, dtype=torch.fl
         train_dataset = BrainTreebankSubjectTrialBenchmarkDataset(test_subject, train_trial_id, dtype=dtype, eval_name=eval_name, 
                                                                   output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset)
         train_datasets.append(train_dataset)
-    train_dataset = ConcatDataset(train_datasets)
-    return train_dataset, test_dataset
+    #train_dataset = ConcatDataset(train_datasets)
+    return train_datasets, test_dataset
 
 
 def generate_splits_SS_SM(test_subject, test_trial_id, eval_name, add_other_trials=False, k_folds=5, dtype=torch.float32, gap_length=None,
