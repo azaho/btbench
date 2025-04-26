@@ -12,12 +12,13 @@ class BrainTreebankSubject:
         This class is used to load the neural data for a given subject and trial.
         It also contains methods to get the data for a given electrode and trial, and to get the spectrogram for a given electrode and trial.
     """
-    def __init__(self, subject_id, allow_corrupted=False, cache=False, dtype=torch.float32):
+    def __init__(self, subject_id, allow_corrupted=False, cache=False, dtype=torch.float32, subsample_factor=1):
         self.subject_id = subject_id
         self.subject_identifier = f'btbank{subject_id}'
         self.allow_corrupted = allow_corrupted
         self.cache = cache
         self.dtype = dtype  # Store dtype as instance variable
+        self.subsample_factor = subsample_factor    
 
         self.localization_data = self._load_localization_data()
         self.electrode_labels = self._get_all_electrode_names()
@@ -111,7 +112,7 @@ class BrainTreebankSubject:
         neural_data_file = os.path.join(ROOT_DIR, f'sub_{self.subject_id}_trial{trial_id:03}.h5')
         with h5py.File(neural_data_file, 'r', locking=False) as f:
             # Get data length first
-            self.electrode_data_length[trial_id] = f['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0]
+            self.electrode_data_length[trial_id] = f['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0] // self.subsample_factor
             # Pre-allocate tensor with specific dtype
             self.neural_data_cache[trial_id] = torch.zeros((len(self.electrode_labels), 
                                                         self.electrode_data_length[trial_id]), 
@@ -119,7 +120,7 @@ class BrainTreebankSubject:
             # Load data
             for electrode_label, electrode_id in self.electrode_ids.items():
                 neural_data_key = self.h5_neural_data_keys[electrode_label]
-                self.neural_data_cache[trial_id][electrode_id] = torch.from_numpy(f['data'][neural_data_key][:]).to(self.dtype)
+                self.neural_data_cache[trial_id][electrode_id] = torch.from_numpy(f['data'][neural_data_key][::self.subsample_factor]).to(self.dtype)
 
     def _calculate_laplacian_rereferencing_addon(self, trial_id):
         assert trial_id in self.neural_data_cache, "Trial data must be cached before Laplacian rereferencing can be applied."
@@ -142,7 +143,7 @@ class BrainTreebankSubject:
         if trial_id in self.h5_files: return
         neural_data_file = os.path.join(ROOT_DIR, f'sub_{self.subject_id}_trial{trial_id:03}.h5')
         self.h5_files[trial_id] = h5py.File(neural_data_file, 'r', locking=False)
-        self.electrode_data_length[trial_id] = self.h5_files[trial_id]['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0]
+        self.electrode_data_length[trial_id] = self.h5_files[trial_id]['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0] // self.subsample_factor
     def load_neural_data(self, trial_id):
         if self.cache: self.cache_neural_data(trial_id)
         else: self.open_neural_data_file(trial_id)
@@ -177,12 +178,12 @@ class BrainTreebankSubject:
         if self.cache:
             if trial_id not in self.neural_data_cache: self.cache_neural_data(trial_id)
             electrode_id = self.electrode_ids[electrode_label]
-            data = self.neural_data_cache[trial_id][electrode_id][window_from:window_to]
+            data = self.neural_data_cache[trial_id][electrode_id][window_from//self.subsample_factor:window_to//self.subsample_factor]
             return data
         else:
             if trial_id not in self.h5_files: self.open_neural_data_file(trial_id)
             neural_data_key = self.h5_neural_data_keys[electrode_label]
-            data = torch.from_numpy(self.h5_files[trial_id]['data'][neural_data_key][window_from:window_to]).to(self.dtype)
+            data = torch.from_numpy(self.h5_files[trial_id]['data'][neural_data_key][window_from:window_to:self.subsample_factor]).to(self.dtype)
             return data
 
     def get_all_electrode_data(self, trial_id, window_from=None, window_to=None):
@@ -190,9 +191,9 @@ class BrainTreebankSubject:
         if window_from is None: window_from = 0
         if window_to is None: window_to = self.electrode_data_length[trial_id]
         if self.cache: 
-            return self.neural_data_cache[trial_id][:, window_from:window_to]
+            return self.neural_data_cache[trial_id][:, window_from//self.subsample_factor:window_to//self.subsample_factor]
         else:
-            all_electrode_data = torch.zeros((len(self.electrode_labels), window_to-window_from), dtype=self.dtype)
+            all_electrode_data = torch.zeros(len(self.electrode_labels), (window_to-window_from)//self.subsample_factor, dtype=self.dtype)
             for electrode_label, electrode_id in self.electrode_ids.items():
                 all_electrode_data[electrode_id] = self.get_electrode_data(electrode_label, trial_id, window_from=window_from, window_to=window_to)
             return all_electrode_data
