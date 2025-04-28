@@ -96,6 +96,7 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
             self.positive_indices = np.where(self.all_words_df["is_onset"].to_numpy() == 1)[0] if eval_name == "onset" else np.arange(len(self.all_words_df))
             self.negative_indices = np.arange(len(self.nonverbal_df))
             min_len = min(len(self.positive_indices), len(self.negative_indices)) # make sure we have an equal number of positive and negative samples
+            np.random.seed(0) #NOTE
             self.positive_indices = np.sort(np.random.choice(self.positive_indices, size=min_len, replace=False))
             self.negative_indices = np.sort(np.random.choice(self.negative_indices, size=min_len, replace=False))
             self.n_samples = len(self.positive_indices) + len(self.negative_indices)
@@ -163,6 +164,7 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
             balanced_indices = []
             for class_label in unique_classes:
                 class_indices = np.where(self.class_labels == class_label)[0]
+                np.random.seed(0)
                 sampled_indices = np.random.choice(class_indices, size=min_count, replace=False)
                 sampled_indices = np.sort(sampled_indices)
                 balanced_indices.extend(sampled_indices)

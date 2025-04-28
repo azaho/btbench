@@ -85,8 +85,8 @@ WEIGHTS=randomized_replacement_no_gaussian_blur; python3 run_cross_val.py +exp=m
 +criterion=pt_feature_extract_coords_criterion +data=btbench_decode +preprocessor=empty_preprocessor \
 +model=pt_downstream_model ++model.upstream_path=/storage/czw/PopTCameraReadyPrep/outputs/${WEIGHTS}.pth \
 ++model.upstream_cfg.use_token_cls_head=True ++model.upstream_cfg.name=pt_model_custom \
-++data.btbench_cache_path=/storage/czw/btbench/saved_examples/btbench_popt_embeds ++data.k_fold=2 \ 
-++exp.runner.num_workers=32 ++exp.runner.total_steps=500 +data_prep=pretrain_multi_subj_multi_chan_template \
+++data.btbench_cache_path=/storage/czw/btbench/saved_examples/btbench_popt_embeds ++data.k_fold=5 \ 
+++exp.runner.num_workers=1 ++exp.runner.total_steps=1000 +data_prep=pretrain_multi_subj_multi_chan_template \
 ++data_prep.electrodes=/storage/czw/btbench/electrode_selections/clean_laplacian.json \
 ++data_prep.brain_runs=/storage/czw/btbench/trial_selections/test_trials.json \
 ++data.raw_brain_data_dir=/storage/czw/braintreebank_data/ \

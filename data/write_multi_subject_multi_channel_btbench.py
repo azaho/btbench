@@ -34,6 +34,8 @@ def write_outputs(dataset, extracter, output_path):
         all_embeddings = extracter(raw_neural_data).numpy()
 
         fname = f"sub_{subject_id}_trial_{trial_id}_s_{est_idx}_e_{est_end_idx}"
+        if fname=="sub_2_trial_6_s_10699088_e_10701136": #TODO
+            import pdb; pdb.set_trace()
         save_path = os.path.join(output_path, f'{fname}.npy')
         np.save(save_path, all_embeddings)
 
@@ -143,10 +145,12 @@ def main(cfg: DictConfig) -> None:
         electrodes = json.load(f)
 
     #eval_tasks = ["frame_brightness", "global_flow", "local_flow", "global_flow_angle", "local_flow_angle", "face_num", "volume", "pitch", "delta_volume", "delta_pitch", "speech", "onset", "gpt2_surprisal", "word_length", "word_gap", "word_index", "word_head_pos", "word_part_speech", "speaker"]
-    eval_tasks = ["speech"]
+    eval_tasks = ["pitch", "delta_volume", "delta_pitch"]
+    #eval_tasks = ["speech"]
 
     for eval_task in eval_tasks:
         log.info(f"Task {eval_task}")
+        #for subject in ["sub_2"]: #TODO
         for subject in brain_runs:
             data_cfg_template = cfg.data.copy()
             log.info(f'Writing features for {subject}')
@@ -165,6 +169,9 @@ def main(cfg: DictConfig) -> None:
                 #print(electrodes[subject])
                 write_trial_data(subject, brain_run, extracter, data_cfg_template_copy, cfg)
                 log.info(f'Obtained brain data and labels {brain_run}')
+                break#TODO
+            break#TODO
+        break#TODO
 
 if __name__ == "__main__":
     main()

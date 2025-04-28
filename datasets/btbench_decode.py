@@ -86,6 +86,7 @@ class BTBenchDecodingDataset(data.Dataset):
 
             fpath = os.path.join(btbench_cache_path, fname)
             if not os.path.exists(fpath):
+                print(fpath)
                 raise RuntimeError("Need to create brainbert embeds first")
 
             manifest.append((fpath, f"sub_{subject_id}"))
