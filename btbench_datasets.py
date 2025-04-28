@@ -71,7 +71,6 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
         nonverbal_df_path = os.path.join(SAVE_SUBJECT_TRIAL_DF_DIR, f"subject{self.subject_id}_trial{self.trial_id}_nonverbal_df.csv")
         self.all_words_df = pd.read_csv(words_df_path)
         self.nonverbal_df = pd.read_csv(nonverbal_df_path)
-        self.subject.load_neural_data(self.trial_id)
 
         rebalance_classes = False # setting this flag as false by default; it is only relevant for classification tasks
         if eval_name == "word_gap": # create the word gap column
@@ -173,6 +172,7 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
             self.n_samples = len(self.balanced_indices)
 
     def _get_neural_data(self, window_from, window_to):
+        self.subject.load_neural_data(self.trial_id)
         if not self.output_indices:
             input = self.subject.get_all_electrode_data(self.trial_id, window_from=window_from, window_to=window_to)
             return input.to(dtype=self.dtype)

@@ -4,7 +4,7 @@ from sklearn.model_selection import KFold
 from braintreebank_subject import Subject
 from btbench_datasets import BrainTreebankSubjectTrialBenchmarkDataset
 import numpy as np
-import btbench_config
+from btbench_config import *
 
 _all_subject_trials = [
     (1, 0), (1, 1), (1, 2), 
@@ -19,13 +19,27 @@ _all_subject_trials = [
     (10, 0), (10, 1)
 ]
 
+DS_DM_TRAIN_SUBJECT_ID, DS_DM_TRAIN_TRIAL_ID = 2, 4
+
+_longest_trials_for_subject = {
+    1: [0, 1],
+    2: [4, 6],
+    3: [2, 1],
+    4: [2, 1],
+    5: [0],
+    6: [0, 2],
+    7: [1, 0],
+    8: [0], 
+    9: [0],
+    10: [1, 0]
+}
 
 def generate_splits_DS_DM(all_subjects, test_subject_id, test_trial_id, eval_name, dtype=torch.float32,
                           
                           # Dataset parameters
                           output_indices=False, 
-                          start_neural_data_before_word_onset=btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET, 
-                          end_neural_data_after_word_onset=btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET):
+                          start_neural_data_before_word_onset=int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE), 
+                          end_neural_data_after_word_onset=int(END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE)):
     """Generate train/test splits for Different Subject Different Movie (DS-DM) evaluation.
     
     This function creates train/test splits by using one subject and movie as the test set,
@@ -41,25 +55,23 @@ def generate_splits_DS_DM(all_subjects, test_subject_id, test_trial_id, eval_nam
 
         # Dataset parameters
         output_indices (bool, optional): Whether to output the indices of the neural data. Defaults to False.
-        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET.
-        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET.
+        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to START_NEURAL_DATA_BEFORE_WORD_ONSET.
+        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to END_NEURAL_DATA_AFTER_WORD_ONSET.
 
     Returns:
         tuple: A tuple containing:
-            - train_dataset (ConcatDataset): Combined dataset of all training subjects and trials
+            - train_datasets (list): List of training datasets
             - test_dataset (Dataset): Dataset for the test subject and trial
     """
+    assert test_subject_id != DS_DM_TRAIN_SUBJECT_ID, "Test subject cannot be the same as the training subject."
+
     test_dataset = BrainTreebankSubjectTrialBenchmarkDataset(all_subjects[test_subject_id], test_trial_id, dtype=dtype, eval_name=eval_name, 
                                                              output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset)
-    train_subject_trials = [(subject_id, trial_id) for subject_id, trial_id in _all_subject_trials if subject_id != test_subject_id and trial_id != test_trial_id]
+    
+    train_subject_id, train_trial_id = DS_DM_TRAIN_SUBJECT_ID, DS_DM_TRAIN_TRIAL_ID
+    train_dataset = BrainTreebankSubjectTrialBenchmarkDataset(all_subjects[train_subject_id], train_trial_id, dtype=dtype, eval_name=eval_name, 
+                                                                output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset)
 
-    train_datasets = []
-    for train_subject_id, train_trial_id in train_subject_trials:
-        train_dataset = BrainTreebankSubjectTrialBenchmarkDataset(all_subjects[train_subject_id], train_trial_id, dtype=dtype, eval_name=eval_name, 
-                                                                  output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset)
-        train_datasets.append(train_dataset)
-
-    train_dataset = ConcatDataset(train_datasets)
     return train_dataset, test_dataset
 
 
@@ -67,8 +79,8 @@ def generate_splits_DS_SM(all_subjects, test_subject_id, test_trial_id, eval_nam
                           
                           # Dataset parameters
                           output_indices=False, 
-                          start_neural_data_before_word_onset=btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET, 
-                          end_neural_data_after_word_onset=btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET):
+                          start_neural_data_before_word_onset=int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE), 
+                          end_neural_data_after_word_onset=END_NEURAL_DATA_AFTER_WORD_ONSET):
     """Generate train/test splits for Different Subject Same Movie (DS-SM) evaluation.
     
     This function creates train/test splits by using one subject and movie as the test set,
@@ -84,12 +96,12 @@ def generate_splits_DS_SM(all_subjects, test_subject_id, test_trial_id, eval_nam
 
         # Dataset parameters
         output_indices (bool, optional): Whether to output the indices of the neural data. Defaults to False.
-        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET.
-        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET.
+        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to START_NEURAL_DATA_BEFORE_WORD_ONSET.
+        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to END_NEURAL_DATA_AFTER_WORD_ONSET.
 
     Returns:
         tuple: A tuple containing:
-            - train_dataset (ConcatDataset): Combined dataset of all training subjects for the test trial
+            - train_datasets (list): List of training datasets
             - test_dataset (Dataset): Dataset for the test subject and trial
     """
     trial_subject_mapping = {}
@@ -106,51 +118,16 @@ def generate_splits_DS_SM(all_subjects, test_subject_id, test_trial_id, eval_nam
     for other_subject_id in other_subject_id_list:
         train_datasets.append(BrainTreebankSubjectTrialBenchmarkDataset(all_subjects[other_subject_id], test_trial_id, dtype=dtype, eval_name=eval_name, 
                                                                         output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset))
-    train_dataset = ConcatDataset(train_datasets)
-    return train_dataset, test_dataset
-
-
-def generate_subject_trials_for_SS_DM():
-    """Generate list of all subject-trial pairs in the dataset that are valid for SS-DM evaluation.
-    (i.e. subjects that contain at least two trials)
-    
-    This function creates a list of tuples containing all valid subject-trial pairs
-    based on the available recordings in the BrainTreebank dataset. Each tuple contains
-    a subject ID and trial ID.
-
-    Returns:
-        list: List of tuples, where each tuple contains:
-            - subject_id (int): ID of the subject
-            - trial_id (int): ID of the trial/movie for that subject
-    """
-    _subject_trials = {
-        1: [0, 1, 2],
-        2: [0, 1, 2, 3, 4, 5, 6],
-        3: [0, 1, 2],
-        4: [0, 1, 2],
-        5: [0],
-        6: [0, 1, 4],
-        7: [0, 1],
-        8: [0],
-        9: [0],
-        10: [0, 1],
-    }
-    for key in _subject_trials:
-        if len(_subject_trials[key]) == 0:
-            del _subject_trials[key]
-    subject_trials = []
-    for key in _subject_trials:
-        for trial in _subject_trials[key]:
-            subject_trials.append((key, trial))
-    return subject_trials
+    #train_dataset = ConcatDataset(train_datasets)
+    return train_datasets, test_dataset
     
 
 def generate_splits_SS_DM(test_subject, test_trial_id, eval_name, dtype=torch.float32, max_other_trials=3,
                           
                           # Dataset parameters
                           output_indices=False, 
-                          start_neural_data_before_word_onset=btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET, 
-                          end_neural_data_after_word_onset=btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET):
+                          start_neural_data_before_word_onset=int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE), 
+                          end_neural_data_after_word_onset=int(END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE)):
     """Generate train/test splits for Single Subject Different Movies (SS-DM) evaluation.
     
     This function creates train/test splits by using one movie as the test set and all other
@@ -166,14 +143,15 @@ def generate_splits_SS_DM(test_subject, test_trial_id, eval_name, dtype=torch.fl
 
         # Dataset parameters
         output_indices (bool, optional): Whether to output the indices of the neural data. Defaults to False.
-        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET.
-        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET.
+        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to START_NEURAL_DATA_BEFORE_WORD_ONSET.
+        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to END_NEURAL_DATA_AFTER_WORD_ONSET.
 
     Returns:
         tuple: A tuple containing:
-            - train_dataset (ConcatDataset): Combined dataset of all training trials
+            - train_datasets (list): List of training datasets
             - test_dataset (Dataset): Dataset for the test trial
     """
+    assert len(_longest_trials_for_subject[test_subject.subject_id]) > 1, f"Training subject must have at least two trials. But subject {DS_DM_TRAIN_SUBJECT_ID} has only {len(_longest_trials_for_subject[DS_DM_TRAIN_SUBJECT_ID])} trials."
     # Define subject-to-trials mapping
     _subject_trials = {
         1: [0, 1, 2],
@@ -187,22 +165,16 @@ def generate_splits_SS_DM(test_subject, test_trial_id, eval_name, dtype=torch.fl
         9: [0],
         10: [0, 1],
     }
-    # Choose subject
-    test_subject_id = test_subject.subject_id  # Change this to test different subjects
-    if test_subject_id not in _subject_trials: raise ValueError(f"Subject {test_subject_id} not found in dataset.")
-
-    train_trials = [t for t in _subject_trials[test_subject_id] if t != test_trial_id][:max_other_trials]
-    if len(train_trials) == 0: raise ValueError(f"Subject {test_subject_id} has no training trials.")
-
+    
     test_dataset = BrainTreebankSubjectTrialBenchmarkDataset(test_subject, test_trial_id, dtype=dtype, eval_name=eval_name, 
                                                              output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset)
-    # Load training datasets dynamically
-    train_datasets = []
-    for train_trial_id in train_trials:
-        train_dataset = BrainTreebankSubjectTrialBenchmarkDataset(test_subject, train_trial_id, dtype=dtype, eval_name=eval_name, 
-                                                                  output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset)
-        train_datasets.append(train_dataset)
-    train_dataset = ConcatDataset(train_datasets)
+    train_trial_id = _longest_trials_for_subject[0]
+    if train_trial_id == test_trial_id:
+        train_trial_id = _longest_trials_for_subject[1] # If the longest trial is the test trial, use the second longest trial for training
+    
+
+    train_dataset = BrainTreebankSubjectTrialBenchmarkDataset(test_subject, train_trial_id, dtype=dtype, eval_name=eval_name, 
+                                                                output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset)
     return train_dataset, test_dataset
 
 
@@ -210,8 +182,8 @@ def generate_splits_SS_SM(test_subject, test_trial_id, eval_name, add_other_tria
                           
                           # Dataset parameters
                           output_indices=False, 
-                          start_neural_data_before_word_onset=btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET, 
-                          end_neural_data_after_word_onset=btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET):
+                          start_neural_data_before_word_onset=int(START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE), 
+                          end_neural_data_after_word_onset=int(END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE)):
     """Generate train/test splits for Single Subject Single Movie (SS-SM) evaluation.
     
     This function performs k-fold cross validation on data from a single subject and movie.
@@ -231,8 +203,8 @@ def generate_splits_SS_SM(test_subject, test_trial_id, eval_name, add_other_tria
 
         # Dataset parameters
         output_indices (bool, optional): Whether to output the indices of the neural data. Defaults to False.
-        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to btbench_config.START_NEURAL_DATA_BEFORE_WORD_ONSET.
-        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to btbench_config.END_NEURAL_DATA_AFTER_WORD_ONSET.
+        start_neural_data_before_word_onset (int, optional): Number of seconds before the word onset to start the neural data. Defaults to START_NEURAL_DATA_BEFORE_WORD_ONSET.
+        end_neural_data_after_word_onset (int, optional): Number of seconds after the word onset to end the neural data. Defaults to END_NEURAL_DATA_AFTER_WORD_ONSET.
 
     Returns:
         tuple: A tuple containing:
