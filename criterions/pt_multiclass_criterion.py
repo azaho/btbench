@@ -4,10 +4,10 @@ from torch import nn
 from criterions import register_criterion
 
 #pt stands for population transformer
-@register_criterion("pt_feature_extract_coords_criterion")
-class PTFeatureExtractCoordsCriterion(BaseCriterion):
+@register_criterion("pt_multiclass_criterion")
+class PTMulticlassCriterion(BaseCriterion):
     def __init__(self):
-        super(PTFeatureExtractCoordsCriterion, self).__init__()
+        super(PTMulticlassCriterion, self).__init__()
         pass
 
     def build_criterion(self, cfg):
@@ -27,7 +27,7 @@ class PTFeatureExtractCoordsCriterion(BaseCriterion):
         position = (coords, seq_id)
 
         output = model.forward(inputs, pad_mask, position)
-        labels = torch.FloatTensor(batch["labels"]).to(output.device)
+        labels = torch.LongTensor(batch["labels"]).to(output.device)
         output = output.squeeze(-1)
         import pdb; pdb.set_trace()
         loss = self.loss_fn(output, labels)
@@ -44,4 +44,5 @@ class PTFeatureExtractCoordsCriterion(BaseCriterion):
             logging_output = {"loss": loss.item(),
                               }
         return loss, logging_output
+
 

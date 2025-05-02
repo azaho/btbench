@@ -106,11 +106,15 @@ class BTBenchPopTTask(BaseTask):
         predicts = [np.array([p]) if len(p.shape)==0 else p for p in predicts]
         predicts = np.concatenate(predicts)
 
+        #TODO: predicts needs to be a softmax not a logistic
         roc_auc = -1
         f1 = -1
+        import pdb; pdb.set_trace()
         if len(set(labels)) <= 2:
             roc_auc = roc_auc_score(labels, predicts)
             f1 = f1_score(labels, np.round(predicts))
+        else:
+            roc_auc = roc_auc_score(labels, predicts, multi_class='ovr', average='macro')
 
         all_outs["roc_auc"] = roc_auc
         all_outs["f1"] = f1

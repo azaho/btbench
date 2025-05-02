@@ -1,0 +1,12 @@
+name: pt_downstream_multiclass
+hidden_dim: 512
+input_dim: 768
+layer_activation: "gelu"
+output_dim: ???
+upstream_cfg: 
+    position_encoding: "multi_subj_position_encoding"
+    n_head: 8
+    n_layers: 6
+    hidden_dim: 512
+    input_dim: 768
+    layer_activation: "gelu"
