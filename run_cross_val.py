@@ -31,8 +31,8 @@ def main(cfg: DictConfig) -> None:
     with open(cfg.data_prep.brain_runs, "r") as f:
         subj_brain_runs = json.load(f)
 
-    #eval_tasks = ["frame_brightness", "global_flow", "local_flow", "global_flow_angle", "local_flow_angle", "face_num", "volume", "pitch", "delta_volume", "delta_pitch", "speech", "onset", "gpt2_surprisal", "word_length", "word_gap", "word_index", "word_head_pos", "word_part_speech", "speaker"]
-    eval_tasks = ["global_flow_angle"]
+    eval_tasks = ["frame_brightness", "global_flow", "local_flow", "global_flow_angle", "local_flow_angle", "face_num", "volume", "pitch", "delta_volume", "delta_pitch", "speech", "onset", "gpt2_surprisal", "word_length", "word_gap", "word_index", "word_head_pos", "word_part_speech", "speaker"]
+    #eval_tasks = ["global_flow_angle"]
     multi_class_tasks = ["global_flow_angle", "local_flow_angle"] #TODO add other tasks
     for eval_name in eval_tasks:
         for subject, brain_runs in subj_brain_runs.items():

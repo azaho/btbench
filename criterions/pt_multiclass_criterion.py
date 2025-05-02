@@ -29,9 +29,7 @@ class PTMulticlassCriterion(BaseCriterion):
         output = model.forward(inputs, pad_mask, position)
         labels = torch.LongTensor(batch["labels"]).to(output.device)
         output = output.squeeze(-1)
-        import pdb; pdb.set_trace()
         loss = self.loss_fn(output, labels)
-        import pdb; pdb.set_trace()
         if return_predicts:
             if 'loss_fn' in self.cfg and self.cfg.loss_fn == "mse":
                 predicts = output.squeeze().detach().cpu().numpy()

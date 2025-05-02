@@ -109,7 +109,6 @@ class BTBenchPopTTask(BaseTask):
         #TODO: predicts needs to be a softmax not a logistic
         roc_auc = -1
         f1 = -1
-        import pdb; pdb.set_trace()
         if len(set(labels)) <= 2:
             roc_auc = roc_auc_score(labels, predicts)
             f1 = f1_score(labels, np.round(predicts))
@@ -119,7 +118,7 @@ class BTBenchPopTTask(BaseTask):
         all_outs["roc_auc"] = roc_auc
         all_outs["f1"] = f1
 
-        accuracy = accuracy_score(labels, np.round(predicts))
+        accuracy = accuracy_score(labels, (predicts).argmax(axis=1))
         all_outs["loss"] /= len(valid_loader)
         all_outs["accuracy"] = accuracy
         all_outs["predicts"] = predicts.tolist()
