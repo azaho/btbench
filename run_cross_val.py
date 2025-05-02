@@ -32,7 +32,7 @@ def main(cfg: DictConfig) -> None:
         subj_brain_runs = json.load(f)
 
     eval_tasks = ["frame_brightness", "global_flow", "local_flow", "global_flow_angle", "local_flow_angle", "face_num", "volume", "pitch", "delta_volume", "delta_pitch", "speech", "onset", "gpt2_surprisal", "word_length", "word_gap", "word_index", "word_head_pos", "word_part_speech", "speaker"]
-    #eval_tasks = ["global_flow_angle"]
+    #eval_tasks = ["frame_brightness"]
     multi_class_tasks = ["global_flow_angle", "local_flow_angle"] #TODO add other tasks
     for eval_name in eval_tasks:
         for subject, brain_runs in subj_brain_runs.items():
@@ -72,8 +72,9 @@ def main(cfg: DictConfig) -> None:
                 results_dir = os.path.join(results_dir_root, f"{subject}_{brain_run}_{eval_name}")
                 cfg.exp.runner.results_dir=results_dir
 
+                cfg['model']['output_dim'] = 2
                 if eval_name in multi_class_tasks:
-                    cfg['model']['output_dim'] = 4 #TODO
+                    cfg['model']['output_dim'] = 4
                 cross_val(cfg)
 
 if __name__ == "__main__":

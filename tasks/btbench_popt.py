@@ -110,8 +110,8 @@ class BTBenchPopTTask(BaseTask):
         roc_auc = -1
         f1 = -1
         if len(set(labels)) <= 2:
-            roc_auc = roc_auc_score(labels, predicts)
-            f1 = f1_score(labels, np.round(predicts))
+            roc_auc = roc_auc_score(labels, predicts[:,1])#TODO check
+            f1 = f1_score(labels, np.round(predicts[:,1]))#TODO check
         else:
             roc_auc = roc_auc_score(labels, predicts, multi_class='ovr', average='macro')
 
