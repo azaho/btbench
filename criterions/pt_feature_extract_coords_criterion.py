@@ -12,11 +12,11 @@ class PTFeatureExtractCoordsCriterion(BaseCriterion):
 
     def build_criterion(self, cfg):
         self.cfg = cfg
-        self.softmax = nn.Softmax()
+        self.sigmoid = nn.Sigmoid()
         if 'loss_fn' in cfg and cfg.loss_fn == "mse":
             self.loss_fn = nn.MSELoss()
         else:
-            self.loss_fn = nn.CrossEntropyLoss(reduction="mean")
+            self.loss_fn = nn.BCEWithLogitsLoss(reduction="mean")
 
     def forward(self, model, batch, device, return_predicts=False):
         #TODO fix the dataset here. 
@@ -29,14 +29,12 @@ class PTFeatureExtractCoordsCriterion(BaseCriterion):
         output = model.forward(inputs, pad_mask, position)
         labels = torch.FloatTensor(batch["labels"]).to(output.device)
         output = output.squeeze(-1)
-        import pdb; pdb.set_trace()
         loss = self.loss_fn(output, labels)
-        import pdb; pdb.set_trace()
         if return_predicts:
             if 'loss_fn' in self.cfg and self.cfg.loss_fn == "mse":
                 predicts = output.squeeze().detach().cpu().numpy()
             else:
-                predicts = self.softmax(output).squeeze().detach().cpu().numpy()
+                predicts = self.sigmoid(output).squeeze().detach().cpu().numpy()
             logging_output = {"loss": loss.item(),
                               "predicts": predicts,
                               }
