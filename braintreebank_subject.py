@@ -105,7 +105,7 @@ class BrainTreebankSubject:
         
         # Open file with context manager to ensure proper closing
         neural_data_file = os.path.join(ROOT_DIR, f'sub_{self.subject_id}_trial{trial_id:03}.h5')
-        with h5py.File(neural_data_file, 'r', locking=False) as f:
+        with h5py.File(neural_data_file, 'r') as f:
             # Get data length first
             self.electrode_data_length[trial_id] = f['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0]
             # Pre-allocate tensor with specific dtype
@@ -137,7 +137,7 @@ class BrainTreebankSubject:
         assert not self.cache, "Cache is enabled; Use cache_neural_data() instead."
         if trial_id in self.h5_files: return
         neural_data_file = os.path.join(ROOT_DIR, f'sub_{self.subject_id}_trial{trial_id:03}.h5')
-        self.h5_files[trial_id] = h5py.File(neural_data_file, 'r', locking=False)
+        self.h5_files[trial_id] = h5py.File(neural_data_file, 'r')
         self.electrode_data_length[trial_id] = self.h5_files[trial_id]['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0]
     def load_neural_data(self, trial_id):
         if self.cache: self.cache_neural_data(trial_id)
@@ -209,6 +209,15 @@ class BrainTreebankSubject:
 
     #     return spectrogram.mean(dim=0), spectrogram.std(dim=0)
 
+    def get_lite_electrodes(self):
+        """
+        Return the list of 'lite' electrodes for this subject, as defined in btbench-lite/btbench_lite_electrodes.json.
+        """
+        json_path = os.path.join("btbench-lite", "btbench_lite_electrodes.json")
+        with open(json_path, "r") as f:
+            lite_map = json.load(f)
+        key = f"btbank{self.subject_id}"
+        return lite_map.get(key, [])
 
 if __name__ == "__main__":
     # This code checks the memory usage of the Subject class for a given trial.
