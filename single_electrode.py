@@ -5,7 +5,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 import torch, numpy as np
-import argparse, json, os, time
+import argparse, json, os, time, psutil
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--eval_name', type=str, default='onset', help='Evaluation name(s) (e.g. onset, gpt2_surprisal). If multiple, separate with commas.')
@@ -15,6 +15,9 @@ parser.add_argument('--verbose', action='store_true', help='Whether to print pro
 parser.add_argument('--save_dir', type=str, default='eval_results', help='Directory to save results')
 parser.add_argument('--only_1second', action='store_true', help='Whether to only evaluate on 1 second after word onset')
 parser.add_argument('--seed', type=int, default=42, help='Random seed')
+parser.add_argument('--electrodes', type=str, default='all', help='Electrode labels to evaluate on. If multiple, separate with commas.')
+parser.add_argument('--lite', action='store_true', help='Whether to use the lite eval for BTBench (which is the default)')
+parser.add_argument('--splits_type', type=str, choices=['SS_SM', 'SS_DM'], default='SS_SM', help='Type of splits to use (SS_SM or DM_SM)')
 args = parser.parse_args()
 
 eval_names = args.eval_name.split(',') if ',' in args.eval_name else [args.eval_name]
@@ -23,7 +26,10 @@ trial_id = args.trial
 verbose = bool(args.verbose)
 save_dir = args.save_dir
 only_1second = bool(args.only_1second)
+electrodes = args.electrodes.split(',') if ',' in args.electrodes else [args.electrodes]
 seed = args.seed
+lite = bool(args.lite)
+splits_type = args.splits_type
 
 bins_start_before_word_onset_seconds = 0.5 if not only_1second else 0
 bins_end_after_word_onset_seconds = 2.5 if not only_1second else 1
@@ -33,10 +39,23 @@ bin_size_seconds = 0.125
 np.random.seed(seed)
 torch.manual_seed(seed)
 
+max_log_priority = -1 if not verbose else 1
+def log(message, priority=0, indent=0):
+    if priority > max_log_priority: return
+
+    current_time = time.strftime("%H:%M:%S")
+    gpu_memory_reserved = torch.cuda.memory_reserved() / 1024**3 if torch.cuda.is_available() else 0
+    process = psutil.Process()
+    ram_usage = process.memory_info().rss / 1024**3
+    print(f"[{current_time} gpu {gpu_memory_reserved:04.1f}G ram {ram_usage:05.1f}G] {' '*4*indent}{message}")
+
 # use cache=True to load this trial's neural data into RAM, if you have enough memory!
 # It will make the loading process faster.
 subject = BrainTreebankSubject(subject_id, allow_corrupted=False, cache=True, dtype=torch.float32)
-all_electrode_labels = subject.electrode_labels
+
+if lite:
+    subject.set_electrode_subset(subject.get_lite_electrodes())
+all_electrode_labels = subject.electrode_labels if electrodes[0] == 'all' else electrodes
 
 for eval_name in eval_names:
     results_electrode = {}
@@ -45,17 +64,27 @@ for eval_name in eval_names:
         subject.set_electrode_subset([electrode_label])
         subject.load_neural_data(trial_id)
         if verbose:
-            print(f"Electrode {electrode_label} subject loaded")
+            log(f"Electrode {electrode_label} subject loaded", priority=0)
 
         results_electrode[electrode_label] = {
             "time_bins": [],
         }
 
-        # train_datasets and test_datasets are arrays of length k_folds, each element is a BrainTreebankSubjectTrialBenchmarkDataset for the train/test split
-        train_datasets, test_datasets = btbench_train_test_splits.generate_splits_SS_SM(subject, trial_id, eval_name, add_other_trials=False, k_folds=5, dtype=torch.float32, 
-                                                                                        output_indices=False, 
-                                                                                        start_neural_data_before_word_onset=int(bins_start_before_word_onset_seconds*btbench_config.SAMPLING_RATE), 
-                                                                                        end_neural_data_after_word_onset=int(bins_end_after_word_onset_seconds*btbench_config.SAMPLING_RATE))
+        if splits_type == "SS_SM":
+            # train_datasets and test_datasets are arrays of length k_folds, each element is a BrainTreebankSubjectTrialBenchmarkDataset for the train/test split
+            train_datasets, test_datasets = btbench_train_test_splits.generate_splits_SS_SM(subject, trial_id, eval_name, k_folds=5, dtype=torch.float32, 
+                                                                                            output_indices=False, 
+                                                                                            start_neural_data_before_word_onset=int(bins_start_before_word_onset_seconds*btbench_config.SAMPLING_RATE), 
+                                                                                            end_neural_data_after_word_onset=int(bins_end_after_word_onset_seconds*btbench_config.SAMPLING_RATE),
+                                                                                            lite=lite)
+        elif splits_type == "SS_DM":
+            train_datasets, test_datasets = btbench_train_test_splits.generate_splits_SS_DM(subject, trial_id, eval_name, max_other_trials=3, dtype=torch.float32, 
+                                                                                            output_indices=False, 
+                                                                                            start_neural_data_before_word_onset=int(bins_start_before_word_onset_seconds*btbench_config.SAMPLING_RATE), 
+                                                                                            end_neural_data_after_word_onset=int(bins_end_after_word_onset_seconds*btbench_config.SAMPLING_RATE),
+                                                                                            lite=lite)
+            train_datasets = [train_datasets]
+            test_datasets = [test_datasets]
 
         if only_1second:
             bin_starts, bin_ends = [0], [1]
@@ -140,7 +169,8 @@ for eval_name in eval_names:
                     "test_roc_auc": float(test_roc)
                 }
                 bin_results["folds"].append(fold_result)
-                if verbose: print(f"Electrode {electrode_label} ({electrode_idx+1}/{len(all_electrode_labels)}), Fold {fold_idx+1}, Bin {bin_start}-{bin_end}: Train accuracy: {train_accuracy:.3f}, Test accuracy: {test_accuracy:.3f}, Train ROC AUC: {train_roc:.3f}, Test ROC AUC: {test_roc:.3f}")
+                if verbose: 
+                    log(f"Electrode {electrode_label} ({electrode_idx+1}/{len(all_electrode_labels)}), Fold {fold_idx+1}, Bin {bin_start}-{bin_end}: Train accuracy: {train_accuracy:.3f}, Test accuracy: {test_accuracy:.3f}, Train ROC AUC: {train_roc:.3f}, Test ROC AUC: {test_roc:.3f}", priority=0)
 
             if bin_start == -bins_start_before_word_onset_seconds and bin_end == bins_end_after_word_onset_seconds:
                 results_electrode[electrode_label]["whole_window"] = bin_results # whole window results
@@ -169,4 +199,4 @@ for eval_name in eval_names:
     with open(f"{save_dir}/linear_regression_electrode_{subject.subject_identifier}_{trial_id}_{eval_name}.json", "w") as f:
         json.dump(results, f, indent=4)
     if verbose:
-        print(f"Results saved to {save_dir}/linear_regression_electrode_{subject.subject_identifier}_{trial_id}_{eval_name}.json")
+        log(f"Results saved to {save_dir}/linear_regression_electrode_{subject.subject_identifier}_{trial_id}_{eval_name}.json", priority=0)

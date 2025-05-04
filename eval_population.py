@@ -13,11 +13,12 @@ parser.add_argument('--subject', type=int, required=True, help='Subject ID')
 parser.add_argument('--trial', type=int, required=True, help='Trial ID')
 parser.add_argument('--verbose', action='store_true', help='Whether to print progress')
 parser.add_argument('--save_dir', type=str, default='eval_results', help='Directory to save results')
-parser.add_argument('--preprocess', type=str, choices=['fft_absangle', 'fft_realimag', 'fft_abs', 'none'], default='', help='Preprocessing to apply to neural data (fft_absangle, fft_realimag, fft_abs or none)')
+parser.add_argument('--preprocess', type=str, choices=['fft_absangle', 'fft_realimag', 'fft_abs', 'none'], default='none', help='Preprocessing to apply to neural data (fft_absangle, fft_realimag, fft_abs or none)')
 parser.add_argument('--splits_type', type=str, choices=['SS_SM', 'SS_DM'], default='SS_SM', help='Type of splits to use (SS_SM or DM_SM)')
 parser.add_argument('--seed', type=int, default=42, help='Random seed')
 parser.add_argument('--nperseg', type=int, default=256, help='Length of each segment for FFT calculation')
 parser.add_argument('--only_1second', action='store_true', help='Whether to only evaluate on 1 second after word onset')
+parser.add_argument('--lite', action='store_true', help='Whether to use the lite eval for BTBench (which is the default)')
 args = parser.parse_args()
 
 eval_names = args.eval_name.split(',') if ',' in args.eval_name else [args.eval_name]
@@ -30,6 +31,7 @@ splits_type = args.splits_type
 seed = args.seed
 nperseg = args.nperseg
 only_1second = bool(args.only_1second)
+lite = bool(args.lite)
 
 # Set random seeds for reproducibility
 np.random.seed(seed)
@@ -51,7 +53,7 @@ else:
     bin_ends = [1]
 
 
-max_log_priority = -1 if not verbose else 1
+max_log_priority = -1 if not verbose else 4
 def log(message, priority=0, indent=0):
     if priority > max_log_priority: return
 
@@ -59,43 +61,8 @@ def log(message, priority=0, indent=0):
     gpu_memory_reserved = torch.cuda.memory_reserved() / 1024**3 if torch.cuda.is_available() else 0
     process = psutil.Process()
     ram_usage = process.memory_info().rss / 1024**3
-    print(f"[{current_time} gpu {gpu_memory_reserved:04.1f}G ram {ram_usage:05.1f}G] ({priority}) {' '*4*indent}{message}")
+    print(f"[{current_time} gpu {gpu_memory_reserved:04.1f}G ram {ram_usage:05.1f}G] {' '*4*indent}{message}")
 
-# OLD
-def calculate_fft(electrode_data, spectrogram=True):
-    """Calculate FFT features for electrode data.
-    
-    Args:
-        electrode_data (np.ndarray): Array of shape (n_samples, n_electrodes, n_timepoints)
-    
-    Returns:
-        np.ndarray: FFT features of shape (n_samples, n_electrodes, n_frequency_bins)
-    """
-    n_samples, n_electrodes, n_timepoints = electrode_data.shape
-    
-    # Reshape to 2D for FFT calculation
-    x = electrode_data.reshape(-1, n_timepoints)
-    
-    # Calculate FFT
-    x = np.fft.rfft(x, axis=-1)
-    
-    # Get number of frequency bins
-    n_freq = x.shape[1]
-            
-    # Reshape back to 3D
-    x = x.reshape(n_samples, n_electrodes, n_freq)
-    
-    if spectrogram:
-        # Calculate magnitude and convert to log power
-        x = np.abs(x)
-        x = np.log(x + 1e-5)
-    else:
-        # Stack real and imaginary parts
-        x_real = np.real(x)
-        x_imag = np.imag(x)
-        x = np.concatenate([x_real, x_imag], axis=-1)
-    
-    return x
 
 from scipy import signal
 import numpy as np
@@ -153,23 +120,24 @@ for eval_name in eval_names:
     }
 
     # Load all electrodes at once
-    subject.clear_neural_data_cache()
+    # subject.clear_neural_data_cache()
     subject.set_electrode_subset(all_electrode_labels)  # Use all electrodes
-    subject.load_neural_data(trial_id)
     if verbose:
-        log("All electrodes loaded", priority=0)
+        log("Subject loaded", priority=0)
 
     # train_datasets and test_datasets are arrays of length k_folds, each element is a BrainTreebankSubjectTrialBenchmarkDataset for the train/test split
     if splits_type == "SS_SM":
-        train_datasets, test_datasets = btbench_train_test_splits.generate_splits_SS_SM(subject, trial_id, eval_name, add_other_trials=False, k_folds=5, dtype=torch.float32, 
+        train_datasets, test_datasets = btbench_train_test_splits.generate_splits_SS_SM(subject, trial_id, eval_name, k_folds=5, dtype=torch.float32, 
                                                                                         output_indices=False, 
                                                                                         start_neural_data_before_word_onset=int(bins_start_before_word_onset_seconds*btbench_config.SAMPLING_RATE), 
-                                                                                        end_neural_data_after_word_onset=int(bins_end_after_word_onset_seconds*btbench_config.SAMPLING_RATE))
+                                                                                        end_neural_data_after_word_onset=int(bins_end_after_word_onset_seconds*btbench_config.SAMPLING_RATE),
+                                                                                        lite=lite, allow_partial_cache=False)
     elif splits_type == "SS_DM":
         train_datasets, test_datasets = btbench_train_test_splits.generate_splits_SS_DM(subject, trial_id, eval_name, max_other_trials=3, dtype=torch.float32, 
                                                                                         output_indices=False, 
                                                                                         start_neural_data_before_word_onset=int(bins_start_before_word_onset_seconds*btbench_config.SAMPLING_RATE), 
-                                                                                        end_neural_data_after_word_onset=int(bins_end_after_word_onset_seconds*btbench_config.SAMPLING_RATE))
+                                                                                        end_neural_data_after_word_onset=int(bins_end_after_word_onset_seconds*btbench_config.SAMPLING_RATE),
+                                                                                        lite=lite, allow_partial_cache=False)
         train_datasets = [train_datasets]
         test_datasets = [test_datasets]
 
@@ -190,7 +158,7 @@ for eval_name in eval_names:
             test_dataset = test_datasets[fold_idx]
 
             log(f"Fold {fold_idx+1}, Bin {bin_start}-{bin_end}")
-            log("Preparing data...", priority=0, indent=1)
+            log("Preparing data...", priority=2, indent=1)
 
             # Convert PyTorch dataset to numpy arrays for scikit-learn
             X_train = np.array([item[0][:, data_idx_from:data_idx_to] for item in train_dataset])
@@ -199,7 +167,7 @@ for eval_name in eval_names:
             y_test = np.array([item[1] for item in test_dataset])
 
             if preprocess in ['fft_absangle', 'fft_realimag', 'fft_abs']:
-                log(f"Calculating {preprocess}...", priority=0, indent=1)
+                log(f"Calculating {preprocess}...", priority=2, indent=1)
                 X_train = compute_stft(X_train, preprocess=preprocess)
                 X_test = compute_stft(X_test, preprocess=preprocess)
 
@@ -207,14 +175,14 @@ for eval_name in eval_names:
             X_train = X_train.reshape(X_train.shape[0], -1)
             X_test = X_test.reshape(X_test.shape[0], -1)
 
-            log(f"Standardizing data...", priority=0, indent=1)
+            log(f"Standardizing data...", priority=2, indent=1)
 
             # Standardize the data in-place
             scaler = StandardScaler(copy=False)
             X_train = scaler.fit_transform(X_train)
             X_test = scaler.transform(X_test)
 
-            log(f"Training model...", priority=0, indent=1)
+            log(f"Training model...", priority=2, indent=1)
 
             # Train logistic regression
             clf = LogisticRegression(random_state=seed, max_iter=10000, tol=1e-3)
