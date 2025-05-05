@@ -35,7 +35,7 @@ DS_DM_TRAIN_SUBJECT_ID, DS_DM_TRAIN_TRIAL_ID = 2, 4
 # Define the maximum number of samples to use for the lite dataset
 BTBENCH_LITE_MAX_SAMPLES = 3500
 BTBENCH_LITE_SUBJECT_TRIALS = [
-    (1, 0), (1, 2), 
+    (1, 1), (1, 2), 
     (2, 0), (2, 4),
     (3, 0), (3, 1),
     (4, 0), (4, 1),

@@ -131,13 +131,13 @@ for eval_name in eval_names:
                                                                                         output_indices=False, 
                                                                                         start_neural_data_before_word_onset=int(bins_start_before_word_onset_seconds*btbench_config.SAMPLING_RATE), 
                                                                                         end_neural_data_after_word_onset=int(bins_end_after_word_onset_seconds*btbench_config.SAMPLING_RATE),
-                                                                                        lite=lite, allow_partial_cache=False)
+                                                                                        lite=lite, allow_partial_cache=True)
     elif splits_type == "SS_DM":
         train_datasets, test_datasets = btbench_train_test_splits.generate_splits_SS_DM(subject, trial_id, eval_name, max_other_trials=3, dtype=torch.float32, 
                                                                                         output_indices=False, 
                                                                                         start_neural_data_before_word_onset=int(bins_start_before_word_onset_seconds*btbench_config.SAMPLING_RATE), 
                                                                                         end_neural_data_after_word_onset=int(bins_end_after_word_onset_seconds*btbench_config.SAMPLING_RATE),
-                                                                                        lite=lite, allow_partial_cache=False)
+                                                                                        lite=lite, allow_partial_cache=True)
         train_datasets = [train_datasets]
         test_datasets = [test_datasets]
 
