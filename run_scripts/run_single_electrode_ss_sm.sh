@@ -23,17 +23,19 @@ declare -a eval_names=(
     "word_part_speech"
     "speaker"
 )
+LOWER_BOUND=$1
+UPPER_BOUND=$2
 
 for EVAL_IDX in {0..18}
 do
-for PAIR_IDX in {0..18}
+for ((PAIR_IDX=LOWER_BOUND; PAIR_IDX<=UPPER_BOUND; PAIR_IDX++))
 do
 # Get subject, trial and eval name for this task
 EVAL_NAME=${eval_names[$EVAL_IDX]}
 SUBJECT=${subjects[$PAIR_IDX]}
 TRIAL=${trials[$PAIR_IDX]}
 
-echo "Running eval for eval $EVAL_NAME, subject $SUBJECT, trial $TRIAL"
-python single_electrode.py --subject $SUBJECT --trial $TRIAL --lite --verbose --eval_name $EVAL_NAME
+echo "Running eval $PAIR_IDX for eval $EVAL_NAME, subject $SUBJECT, trial $TRIAL"
+#python single_electrode.py --subject $SUBJECT --trial $TRIAL --verbose --eval_name $EVAL_NAME
 done
 done
