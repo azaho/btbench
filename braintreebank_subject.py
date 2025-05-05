@@ -12,13 +12,12 @@ class BrainTreebankSubject:
         This class is used to load the neural data for a given subject and trial.
         It also contains methods to get the data for a given electrode and trial, and to get the spectrogram for a given electrode and trial.
     """
-    def __init__(self, subject_id, allow_corrupted=False, cache=False, dtype=torch.float32, subsample_factor=1):
+    def __init__(self, subject_id, allow_corrupted=False, cache=False, dtype=torch.float32):
         self.subject_id = subject_id
         self.subject_identifier = f'btbank{subject_id}'
         self.allow_corrupted = allow_corrupted
         self.cache = cache
         self.dtype = dtype  # Store dtype as instance variable
-        self.subsample_factor = subsample_factor    
 
         self.localization_data = self._load_localization_data()
         self.electrode_labels = self._get_all_electrode_names()
@@ -31,11 +30,14 @@ class BrainTreebankSubject:
         self.neural_data_cache = {} # structure: {trial_id: torch.Tensor of shape (n_electrodes, n_samples)}
         self.h5_files = {} # structure: {trial_id: h5py.File}
 
-        # For downstream Laplacian rereferencing
-        self.laplacian_electrodes, self.electrode_neighbors = self._get_all_laplacian_electrodes()
+        self.neural_data_cache_window_from = 0
+        self.neural_data_cache_window_to = None
 
-    def set_electrode_subset(self, electrode_subset):
-        self.electrode_labels = electrode_subset
+    def set_electrode_subset(self, electrode_labels):
+        """
+            Set the subset of electrodes to use for this subject.
+        """
+        self.electrode_labels = electrode_labels
         self.electrode_ids = {e:i for i, e in enumerate(self.electrode_labels)}
 
     def get_n_electrodes(self):
@@ -58,6 +60,46 @@ class BrainTreebankSubject:
         corrupted_electrodes = json.load(open(corrupted_electrodes_file))
         corrupted_electrodes = [self._clean_electrode_label(e) for e in corrupted_electrodes[f'sub_{self.subject_id}']]
         return corrupted_electrodes
+    def _filter_electrode_labels(self):
+        """
+            Filter the electrode labels to remove corrupted electrodes and electrodes that don't have brain signal
+        """
+        filtered_electrode_labels = self.electrode_labels
+        # Step 1. Remove corrupted electrodes
+        if not self.allow_corrupted:
+            corrupted_electrodes_file = os.path.join(ROOT_DIR, "corrupted_elec.json")
+            corrupted_electrodes = json.load(open(corrupted_electrodes_file))
+            corrupted_electrodes = [self._clean_electrode_label(e) for e in corrupted_electrodes[f'sub_{self.subject_id}']]
+            filtered_electrode_labels = [e for e in filtered_electrode_labels if e not in corrupted_electrodes]
+        # Step 2. Remove trigger electrodes
+        trigger_electrodes = [e for e in self.electrode_labels if (e.upper().startswith("DC") or e.upper().startswith("TRIG"))]
+        filtered_electrode_labels = [e for e in filtered_electrode_labels if e not in trigger_electrodes]
+        return filtered_electrode_labels
+    
+    def cache_neural_data(self, trial_id, cache_window_from=None, cache_window_to=None, force_cache=False):
+        assert self.cache, "Cache is not enabled; not able to cache neural data."
+        if trial_id in self.neural_data_cache and not force_cache: return  # no need to cache again
+
+        # Open file with context manager to ensure proper closing
+        neural_data_file = os.path.join(ROOT_DIR, f'sub_{self.subject_id}_trial{trial_id:03}.h5')
+        with h5py.File(neural_data_file, 'r') as f:
+            # Get data length first
+            self.electrode_data_length[trial_id] = f['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0]
+
+            if cache_window_from is None: cache_window_from = 0
+            if cache_window_to is None: cache_window_to = self.electrode_data_length[trial_id]
+            
+            self.cache_neural_data_window_from = cache_window_from
+            self.cache_neural_data_window_to = cache_window_to
+            
+            # Pre-allocate tensor with specific dtype
+            self.neural_data_cache[trial_id] = torch.zeros((len(self.electrode_labels), cache_window_to-cache_window_from), dtype=self.dtype)
+
+            # Load data
+            for electrode_label, electrode_id in self.electrode_ids.items():
+                neural_data_key = self.h5_neural_data_keys[electrode_label]
+                self.neural_data_cache[trial_id][electrode_id] = torch.from_numpy(f['data'][neural_data_key][cache_window_from:cache_window_to]).to(self.dtype)
+
     def _get_all_laplacian_electrodes(self, verbose=False):
         """
             Get all laplacian electrodes for a given subject. This function is originally from
@@ -88,6 +130,7 @@ class BrainTreebankSubject:
         electrodes = [f'{x}{y}' for (x,y) in laplacian_stems]
         neighbors = {e: get_neighbors(stem_electrode_name(e)) for e in electrodes}
         return electrodes, neighbors
+<<<<<<< HEAD
     def _filter_electrode_labels(self):
         """
             Filter the electrode labels to remove corrupted electrodes and electrodes that don't have brain signal
@@ -121,16 +164,9 @@ class BrainTreebankSubject:
             for electrode_label, electrode_id in self.electrode_ids.items():
                 neural_data_key = self.h5_neural_data_keys[electrode_label]
                 self.neural_data_cache[trial_id][electrode_id] = torch.from_numpy(f['data'][neural_data_key][::self.subsample_factor]).to(self.dtype)
+=======
+>>>>>>> main
 
-    def _calculate_laplacian_rereferencing_addon(self, trial_id):
-        assert trial_id in self.neural_data_cache, "Trial data must be cached before Laplacian rereferencing can be applied."
-        neural_data_cache = self.neural_data_cache[trial_id]
-        neighbors_data = torch.zeros((len(self.electrode_labels), neural_data_cache.shape[1]), dtype=self.dtype)
-        for electrode_label, electrode_id in self.electrode_ids.items():
-            assert electrode_label in self.electrode_neighbors, f"Neighbor electrodes for electrode {electrode_label} not found in electrode_neighbors. A mistake upstream must have happened."
-            neighbors = self.electrode_neighbors[electrode_label]
-            neighbors_data[electrode_id] = torch.mean(torch.stack([neural_data_cache[self.electrode_ids[n]][:] for n in neighbors]), dim=0)
-        return neighbors_data
     def clear_neural_data_cache(self, trial_id=None):
         if trial_id is None:
             self.neural_data_cache = {}
@@ -138,14 +174,17 @@ class BrainTreebankSubject:
         else:
             if trial_id in self.neural_data_cache: del self.neural_data_cache[trial_id]
             if trial_id in self.h5_files: del self.h5_files[trial_id]
+        self.electrode_data_length = {}
+        self.neural_data_cache_window_from = 0
+        self.neural_data_cache_window_to = None
     def open_neural_data_file(self, trial_id):
         assert not self.cache, "Cache is enabled; Use cache_neural_data() instead."
         if trial_id in self.h5_files: return
         neural_data_file = os.path.join(ROOT_DIR, f'sub_{self.subject_id}_trial{trial_id:03}.h5')
-        self.h5_files[trial_id] = h5py.File(neural_data_file, 'r', locking=False)
-        self.electrode_data_length[trial_id] = self.h5_files[trial_id]['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0] // self.subsample_factor
-    def load_neural_data(self, trial_id):
-        if self.cache: self.cache_neural_data(trial_id)
+        self.h5_files[trial_id] = h5py.File(neural_data_file, 'r')
+        self.electrode_data_length[trial_id] = self.h5_files[trial_id]['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0]
+    def load_neural_data(self, trial_id, cache_window_from=None, cache_window_to=None):
+        if self.cache: self.cache_neural_data(trial_id, cache_window_from=cache_window_from, cache_window_to=cache_window_to)
         else: self.open_neural_data_file(trial_id)
     
     def get_electrode_coordinates(self):
@@ -159,7 +198,7 @@ class BrainTreebankSubject:
         coordinates = torch.zeros((len(self.electrode_labels), 3), dtype=self.dtype)
         for i, label in enumerate(self.electrode_labels):
             row = self.get_electrode_metadata(label)
-            coordinates[i] = torch.tensor([row['L'], row['P'], row['I']], dtype=self.dtype)
+            coordinates[i] = torch.tensor([row['L'], row['I'], row['P']], dtype=self.dtype)
         return coordinates
 
     def get_electrode_metadata(self, electrode_label):
@@ -179,13 +218,19 @@ class BrainTreebankSubject:
         if window_to is None: window_to = self.electrode_data_length[trial_id]
         if self.cache:
             if trial_id not in self.neural_data_cache: self.cache_neural_data(trial_id)
+
+            # in case we cached a subset of the data, we need to force a re-cache if we want to access data outside of that range
+            if ((self.cache_neural_data_window_from is not None) and (window_from < self.cache_neural_data_window_from)) or \
+                ((self.cache_neural_data_window_to is not None) and (window_to > self.cache_neural_data_window_to)):
+                self.cache_neural_data(trial_id, force_cache=True)
+
             electrode_id = self.electrode_ids[electrode_label]
-            data = self.neural_data_cache[trial_id][electrode_id][window_from//self.subsample_factor:window_to//self.subsample_factor]
+            data = self.neural_data_cache[trial_id][electrode_id][window_from-self.cache_neural_data_window_from:window_to-self.cache_neural_data_window_from]
             return data
         else:
             if trial_id not in self.h5_files: self.open_neural_data_file(trial_id)
             neural_data_key = self.h5_neural_data_keys[electrode_label]
-            data = torch.from_numpy(self.h5_files[trial_id]['data'][neural_data_key][window_from:window_to:self.subsample_factor]).to(self.dtype)
+            data = torch.from_numpy(self.h5_files[trial_id]['data'][neural_data_key][window_from:window_to]).to(self.dtype)
             return data
 
     def get_all_electrode_data(self, trial_id, window_from=None, window_to=None):
@@ -193,10 +238,34 @@ class BrainTreebankSubject:
         if window_from is None: window_from = 0
         if window_to is None: window_to = self.electrode_data_length[trial_id]
         if self.cache: 
-            return self.neural_data_cache[trial_id][:, window_from//self.subsample_factor:window_to//self.subsample_factor]
+            # in case we cached a subset of the data, we need to force a re-cache if we want to access data outside of that range
+            if ((self.cache_neural_data_window_from is not None) and (window_from < self.cache_neural_data_window_from)) or \
+                ((self.cache_neural_data_window_to is not None) and (window_to > self.cache_neural_data_window_to)):
+                self.cache_neural_data(trial_id, force_cache=True)
+
+            return self.neural_data_cache[trial_id][:, window_from-self.cache_neural_data_window_from:window_to-self.cache_neural_data_window_from]
         else:
-            all_electrode_data = torch.zeros(len(self.electrode_labels), (window_to-window_from)//self.subsample_factor, dtype=self.dtype)
+            all_electrode_data = torch.zeros((len(self.electrode_labels), window_to-window_from), dtype=self.dtype)
             for electrode_label, electrode_id in self.electrode_ids.items():
                 all_electrode_data[electrode_id] = self.get_electrode_data(electrode_label, trial_id, window_from=window_from, window_to=window_to)
             return all_electrode_data
+<<<<<<< HEAD
 Subject = BrainTreebankSubject # for backwards compatibility
+=======
+
+    def get_lite_electrodes(self):
+        """
+        Return the list of 'lite' electrodes for this subject, as defined in btbench_config.py.
+        """
+        return BTBENCH_LITE_ELECTRODES[f"btbank{self.subject_id}"]
+Subject = BrainTreebankSubject # for backwards compatibility
+
+
+if __name__ == "__main__":
+    subject_id, trial_id = 1, 1
+    subject = BrainTreebankSubject(subject_id, cache=True, dtype=torch.bfloat16)
+    print(subject.get_lite_electrodes())
+    subject.load_neural_data(trial_id)
+    print(subject.get_all_electrode_data(trial_id).shape)
+    exit()
+>>>>>>> main
