@@ -86,9 +86,10 @@ for eval_name in eval_names:
                 test_dataset = test_datasets[fold_idx]
 
                 # Convert PyTorch dataset to numpy arrays for scikit-learn
-                X_train = np.array([item[0][:, data_idx_from:data_idx_to].flatten() for item in train_dataset])
+                arr = [item[0][:, data_idx_from:data_idx_to].flatten() for item in train_dataset]
+                X_train = np.array(torch.stack([item[0][:, data_idx_from:data_idx_to].flatten() for item in train_dataset]))
                 y_train = np.array([item[1] for item in train_dataset])
-                X_test = np.array([item[0][:, data_idx_from:data_idx_to].flatten() for item in test_dataset])
+                X_test = np.array(torch.stack([item[0][:, data_idx_from:data_idx_to].flatten() for item in test_dataset]))
                 y_test = np.array([item[1] for item in test_dataset])
 
                 # Standardize the data
