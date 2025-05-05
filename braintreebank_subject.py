@@ -81,7 +81,7 @@ class BrainTreebankSubject:
         if trial_id in self.neural_data_cache and not force_cache: return  # no need to cache again
 
         # Open file with context manager to ensure proper closing
-        neural_data_file = os.path.join(ROOT_DIR, f'sub_{self.subject_id}_trial{trial_id:03}.h5')
+        neural_data_file = os.path.join(ROOT_DIR, 'all_subject_data', f'sub_{self.subject_id}_trial{trial_id:03}.h5')
         with h5py.File(neural_data_file, 'r') as f:
             # Get data length first
             self.electrode_data_length[trial_id] = f['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0]
