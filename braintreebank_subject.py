@@ -130,43 +130,6 @@ class BrainTreebankSubject:
         electrodes = [f'{x}{y}' for (x,y) in laplacian_stems]
         neighbors = {e: get_neighbors(stem_electrode_name(e)) for e in electrodes}
         return electrodes, neighbors
-<<<<<<< HEAD
-    def _filter_electrode_labels(self):
-        """
-            Filter the electrode labels to remove corrupted electrodes and electrodes that don't have brain signal
-        """
-        filtered_electrode_labels = self.electrode_labels
-        # Step 1. Remove corrupted electrodes
-        if not self.allow_corrupted:
-            corrupted_electrodes_file = os.path.join(ROOT_DIR, "corrupted_elec.json")
-            corrupted_electrodes = json.load(open(corrupted_electrodes_file))
-            corrupted_electrodes = [self._clean_electrode_label(e) for e in corrupted_electrodes[f'sub_{self.subject_id}']]
-            filtered_electrode_labels = [e for e in filtered_electrode_labels if e not in corrupted_electrodes]
-        # Step 2. Remove trigger electrodes
-        trigger_electrodes = [e for e in self.electrode_labels if (e.upper().startswith("DC") or e.upper().startswith("TRIG"))]
-        filtered_electrode_labels = [e for e in filtered_electrode_labels if e not in trigger_electrodes]
-        return filtered_electrode_labels
-    
-    def cache_neural_data(self, trial_id):
-        assert self.cache, "Cache is not enabled; not able to cache neural data."
-        if trial_id in self.neural_data_cache: return  # no need to cache again
-        
-        # Open file with context manager to ensure proper closing
-        neural_data_file = os.path.join(ROOT_DIR, 'all_subject_data', f'sub_{self.subject_id}_trial{trial_id:03}.h5')
-        with h5py.File(neural_data_file, 'r', locking=False) as f:
-            # Get data length first
-            self.electrode_data_length[trial_id] = f['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0] // self.subsample_factor
-            # Pre-allocate tensor with specific dtype
-            self.neural_data_cache[trial_id] = torch.zeros((len(self.electrode_labels), 
-                                                        self.electrode_data_length[trial_id]), 
-                                                        dtype=self.dtype)
-            # Load data
-            for electrode_label, electrode_id in self.electrode_ids.items():
-                neural_data_key = self.h5_neural_data_keys[electrode_label]
-                self.neural_data_cache[trial_id][electrode_id] = torch.from_numpy(f['data'][neural_data_key][::self.subsample_factor]).to(self.dtype)
-=======
->>>>>>> main
-
     def clear_neural_data_cache(self, trial_id=None):
         if trial_id is None:
             self.neural_data_cache = {}
@@ -249,17 +212,14 @@ class BrainTreebankSubject:
             for electrode_label, electrode_id in self.electrode_ids.items():
                 all_electrode_data[electrode_id] = self.get_electrode_data(electrode_label, trial_id, window_from=window_from, window_to=window_to)
             return all_electrode_data
-<<<<<<< HEAD
-Subject = BrainTreebankSubject # for backwards compatibility
-=======
 
     def get_lite_electrodes(self):
         """
         Return the list of 'lite' electrodes for this subject, as defined in btbench_config.py.
         """
         return BTBENCH_LITE_ELECTRODES[f"btbank{self.subject_id}"]
-Subject = BrainTreebankSubject # for backwards compatibility
 
+Subject = BrainTreebankSubject # for backwards compatibility
 
 if __name__ == "__main__":
     subject_id, trial_id = 1, 1
@@ -268,4 +228,3 @@ if __name__ == "__main__":
     subject.load_neural_data(trial_id)
     print(subject.get_all_electrode_data(trial_id).shape)
     exit()
->>>>>>> main
