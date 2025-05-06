@@ -268,6 +268,9 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
     def __len__(self):
         return self.n_samples
     def __getitem__(self, idx, force_output_indices=False):
+        if idx >= self.n_samples:
+            raise IndexError(f"Index {idx} out of bounds for dataset of size {self.n_samples}")
+        
         if self.eval_name in single_float_variables or self.eval_name == "word_gap":
             data, label, est_idx, est_end_idx = self._simple_float_variable__getitem__(idx, force_output_indices=force_output_indices)
         elif self.eval_name in four_way_cardinal_direction_variables or self.eval_name in ["face_num", "word_index", "word_head_pos", "word_part_speech", "speaker"]:
