@@ -36,6 +36,6 @@ SUBJECT=${subjects[$PAIR_IDX]}
 TRIAL=${trials[$PAIR_IDX]}
 
 echo "Running eval $PAIR_IDX for eval $EVAL_NAME, subject $SUBJECT, trial $TRIAL"
-#python single_electrode.py --subject $SUBJECT --trial $TRIAL --verbose --eval_name $EVAL_NAME
+python single_electrode.py --subject $SUBJECT --trial $TRIAL --verbose --eval_name $EVAL_NAME
 done
 done
