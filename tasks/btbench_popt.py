@@ -109,11 +109,14 @@ class BTBenchPopTTask(BaseTask):
         #TODO: predicts needs to be a softmax not a logistic
         roc_auc = -1
         f1 = -1
-        if len(set(labels)) <= 2:
+        if max(labels) <= 1:
             roc_auc = roc_auc_score(labels, predicts[:,1])#TODO check
             f1 = f1_score(labels, np.round(predicts[:,1]))#TODO check
         else:
-            roc_auc = roc_auc_score(labels, predicts, multi_class='ovr', average='macro')
+            try:
+                roc_auc = roc_auc_score(labels, predicts, multi_class='ovr', average='macro')
+            except:
+                roc_auc = np.nan #This occurs sometimes when the validation set is so small that it does not contain enough samples of each class. Given that I don't use the val roc_auc for anything, I think this is acceptable
 
         all_outs["roc_auc"] = roc_auc
         all_outs["f1"] = f1
