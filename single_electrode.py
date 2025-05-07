@@ -111,6 +111,7 @@ for eval_name in eval_names:
 
             # Loop over all folds
             for fold_idx in range(len(train_datasets)):
+                start_time = time.time()
                 train_dataset = train_datasets[fold_idx]
                 test_dataset = test_datasets[fold_idx]
 
@@ -127,7 +128,7 @@ for eval_name in eval_names:
                 X_test = scaler.transform(X_test)
 
                 # Train logistic regression
-                clf = LogisticRegression(random_state=seed, max_iter=10000, tol=1e-3)
+                clf = LogisticRegression(random_state=seed, max_iter=10000, tol=1e-3, n_jobs=1)
                 clf.fit(X_train, y_train)
 
                 # Evaluate model
@@ -170,8 +171,10 @@ for eval_name in eval_names:
                     "test_roc_auc": float(test_roc)
                 }
                 bin_results["folds"].append(fold_result)
+                end_time = time.time()
+                total_time = end_time - start_time
                 if verbose: 
-                    log(f"Electrode {electrode_label} ({electrode_idx+1}/{len(all_electrode_labels)}), Fold {fold_idx+1}, Bin {bin_start}-{bin_end}: Train accuracy: {train_accuracy:.3f}, Test accuracy: {test_accuracy:.3f}, Train ROC AUC: {train_roc:.3f}, Test ROC AUC: {test_roc:.3f}", priority=0)
+                    log(f"Electrode {electrode_label} ({electrode_idx+1}/{len(all_electrode_labels)}), Fold {fold_idx+1}, Bin {bin_start}-{bin_end}: Train accuracy: {train_accuracy:.3f}, Test accuracy: {test_accuracy:.3f}, Train ROC AUC: {train_roc:.3f}, Test ROC AUC: {test_roc:.3f} took ", priority=0)
 
             if bin_start == -bins_start_before_word_onset_seconds and bin_end == bins_end_after_word_onset_seconds:
                 results_electrode[electrode_label]["whole_window"] = bin_results # whole window results
