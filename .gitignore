@@ -5,17 +5,15 @@ wandb/
 __pycache__/
 
 braintreebank*/
-subject_metadata/
-speech_selectivity_data/
+btbench_subject_metadata/
+btbench_speech_selectivity_data/
 eval_results*/
 eval_results_ss_sm/
 eval_results_ss_dm/
+eval_results_ss_sm_per_bin/
 
-misc_Andrii/
-quickstart.ipynb
 r/
-r_old/
-_temp.ipynb
+logs/
 figures/.*
 eval_results_old/*.DS_Store
 .DS_Store

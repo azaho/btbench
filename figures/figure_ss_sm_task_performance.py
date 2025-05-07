@@ -84,8 +84,8 @@ def create_performance_figure():
         for task in category:
             performance_data[task] = {}
             for model in models:
-                model_prefix = 'linear_normalized' if 'linear' in model.lower() else 'cnn'
-                spec_suffix = '_spectrogram_normalized' if 'spectrogram' in model.lower() else '_voltage'
+                model_prefix = 'linear' if 'linear' in model.lower() else 'cnn'
+                spec_suffix = '_spectrogram_normalized' if 'spectrogram' in model.lower() else '_voltage_normalized'
                 
                 # Find matching files for this task/model combination
                 pattern = f'eval_results_ss_sm/{model_prefix}{spec_suffix}_*subject[0-9]*_trial?_{task}.json'

@@ -32,41 +32,28 @@ pip install --upgrade pip
 pip install beautifulsoup4 requests torch torchvision h5py pandas scipy numpy matplotlib seaborn wandb scikit-learn psutil librosa
 ```
 
-2. Download and extract the braintreebank dataset (this step can be skipped if the dataset is already downloaded and extracted; it should be all extracted into the braintreebank/ directory):
-```
-python braintreebank_download_extract.py
-```
-alternatively, you can specify the path to the braintreebank dataset in the `btbench_config.py` file:
+2. Specify the path to the braintreebank dataset (or the path to download it to) in the `btbench_config.py` file: 
 ```
 ROOT_DIR = "braintreebank" # Root directory for the braintreebank data
+```
+Then, download and extract the braintreebank dataset (this step can be skipped if the dataset is already downloaded and extracted; it should be all extracted into the ROOT_DIR directory):
+```
+python braintreebank_download_extract.py
 ```
 
 3. Process the subject trial dataframes:
 ```
-python btbench_process_subject_trial_df.py
+python btbench_process_subject_trials.py
 ```
-This command will create the files in a directory called `subject_metadata`.
+This command will create the files in a directory called `btbench_subject_metadata`.
 
-4. Then, you use the file `example_linear.ipynb` to see how to create a dataset and evaluate a linear model.
-To specify which data you want (sentence onset, pitch, etc.), adjust the ‘eval_name’ parameter when defining a BrainTreebankSubjectTrialBenchmarkDataset
-object in code block 2. 
+4. Then, you use the file `quickstart.ipynb` to see how to create a dataset and evaluate a linear model.
 
-### Description of the files in the repository
-- `figures/` - directory for files creating the figures and storing the figures
-- `subject_metadata/` - directory for the subject metadata (created by the script `btbench_process_subject_trial_df.py`)
-- `speech_selectivity_data/` - directory for the speech selectivity data (created by the script `btbench_process_speech_selectivity.py`)
-- `btbench_config.py` - configuration file for the benchmark
-- `btbench_process_subject_trial_df.py` - script for processing the subject trial metadata
-- `btbench_process_speech_selectivity.py` - script for processing the electrode speech selectivity data
-- `btbench_datasets.py` - script that defines the BrainTreebankSubjectTrialBenchmarkDataset class, which contains the features/labels for a single subject and trial
-- `btbench_train_test_splits.py` - script that defines the train/test splits for the benchmark, for each of the 4 train/test split types (SS-SM, SS-DM, DS-SM, DS-DM)
-- `eval_single_run.py` - script for training and evaluating a simple linear model (optionally, after taking a spectrogram of the data) on a given subject and trial, and task
-- `braintreebank/` - directory for the braintreebank dataset
-- `braintreebank_download_extract.py` - script for downloading and extracting the braintreebank dataset
-- `braintreebank_subject.py` - script that defines the Subject class, which contains the data for a single subject
-- `example_linear.ipynb` - example of how to create a dataset and evaluate a linear model
-- `eval_single_run_cnn_gpu.py` - script for training and evaluating a simple CNN model (optionally, after taking a spectrogram of the data) on a given subject and trial, and task
-- `eval_linear_per_bin.py` - script for training and evaluating a simple linear model on separate small timebins around the onset of the word
+5. To evaluate the linear regression model on all electrodes and time bins separately, run:
+```
+python single_electrode.py --subject SUBJECT_ID --trial TRIAL_ID --verbose
+```
+This command will create a JSON file in the `eval_results` directory with the results, according to the schema in `leaderboard_schema.json`. You can change the `save_dir` argument to save the results to a different directory: `--save_dir SAVE_DIR`.
 
 ## Citation
 

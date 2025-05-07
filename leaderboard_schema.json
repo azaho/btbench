@@ -1,0 +1,51 @@
+{
+    "model_name": "Linear Regression",
+    "description": "Linear Regression model",
+    "author": "John Doe", 
+    "organization": "MIT", 
+    "organization_url": "https://mit.edu",
+    "timestamp": 0, 
+
+    "evaluation_results": {
+        "btbank1_1": {
+            "population": {
+                "time_bins": [
+                    {
+                        "time_bin_start": 0.0,
+                        "time_bin_end": 1.0,
+                        "folds": [
+                            {"train_accuracy": 0.5, "train_roc_auc": 0.6, "test_accuracy": 0.5, "test_roc_auc": 0.6},
+                        ]
+                    },
+                ],
+                "whole_window": {
+                    "time_bin_start": 0.0,
+                    "time_bin_end": 1.0,
+                    "folds": [
+                        {"train_accuracy": 0.5, "train_roc_auc": 0.6, "test_accuracy": 0.5, "test_roc_auc": 0.6},
+                    ]
+                }
+            },
+            "electrode": {
+                "F3aOFa15": {
+                    "time_bins": [
+                        {
+                            "time_bin_start": 0.0,
+                            "time_bin_end": 1.0,
+                            "folds": [
+                                {"train_accuracy": 0.5, "train_roc_auc": 0.6, "test_accuracy": 0.5, "test_roc_auc": 0.6},
+                            ]
+                        },
+                    ],
+                    "whole_window": {
+                        "time_bin_start": 0.0,
+                        "time_bin_end": 1.0,
+                        "folds": [
+                            {"train_accuracy": 0.5, "train_roc_auc": 0.6, "test_accuracy": 0.5, "test_roc_auc": 0.6},
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}
