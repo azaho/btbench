@@ -34,6 +34,7 @@ def main(cfg: DictConfig) -> None:
         data_cfg_template["electrodes"] = electrodes[subject]
 
         data_cfg_template_copy = data_cfg_template.copy()
+
         for brain_run in brain_runs[subject]:
             log.info(f'Writing features for {brain_run}')
             data_cfg_template_copy["brain_runs"] = [brain_run]
@@ -58,18 +59,19 @@ def main(cfg: DictConfig) -> None:
 
             out_file_path = os.path.join(out_file_dir, f"{subject}_{brain_run}.h5")
             with h5py.File(out_file_path, "w") as out_f:
+
                 for (i,electrode) in tqdm(enumerate(labels)):
                     if electrode in electrodes[subject]:
                         data_cfg_template_electrode_copy = data_cfg_template_copy.copy()
                         data_cfg_template_electrode_copy["electrodes"] = [electrode]
                         trial_data = TrialData(subject, brain_run, data_cfg_template_electrode_copy)
                         reader = H5DataReader(trial_data, data_cfg_template_electrode_copy)
-                        channel_data = reader.get_filtered_data()
+                        channel_data = reader.get_filtered_data().squeeze()
                     else:
                         with h5py.File(input_file_path, "r") as f:
                             channel_data = f['data'][f'electrode_{i}'][:]
 
-                    out_f.create_dataset(f'data/channel_{i}', data=channel_data)        
+                    out_f.create_dataset(f'data/electrode_{i}', data=channel_data)        
 
 if __name__ == "__main__":
     main()
