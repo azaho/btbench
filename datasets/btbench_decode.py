@@ -76,6 +76,14 @@ class BTBenchDecodingDataset(data.Dataset):
         self.region2id = {r:i for i,r in enumerate(all_dk_regions)}
         self.id2region = {i:r for r,i in self.region2id.items()} 
 
+        self.coords_dict = {}
+        for subject in ordered_electrodes.keys():
+            self.coords_dict[subject] = all_localization_dfs[subject][["L", "I", "P"]].to_numpy()
+
+        if self.cfg.get("region_coords", False):
+            raise ValueError("Not implemented")
+
+
     def create_manifest_and_labels(self, btbench_dataset):
         btbench_cache_path = self.cfg.btbench_cache_path
         manifest, labels = [], []
@@ -130,27 +138,18 @@ class BTBenchDecodingDataset(data.Dataset):
         fpath, subject = self.manifest[idx]
         input_x = np.load(fpath)
         input_x = self.extracter(input_x)
-        input_x = torch.FloatTensor(input_x)
-        input_x = input_x[self.absolute_id[subject],:]#sub sample the channels based on selection
+        input_x = torch.FloatTensor(input_x[self.absolute_id[subject],:])#sub sample the channels based on selection
 
         embed_dim = input_x.shape[-1]
         cls_token = torch.ones(1,embed_dim)
 
         input_x = torch.concatenate([cls_token,input_x])
 
-        coords = self.all_localization_dfs[subject][["L", "I", "P"]].to_numpy()
+        coords = self.coords_dict[subject]
         coords = torch.LongTensor(coords)
 
         seq_len = input_x.shape[0] - 1
-        #seq_id = torch.LongTensor([0]*seq_len + [1]*seq_len)k
         seq_id = torch.LongTensor([0]*seq_len)
-
-        regions = self.all_localization_dfs[subject]['DesikanKilliany']
-        regions = np.array([self.region2id[r] for r in regions])
-        regions = torch.LongTensor(regions)
-
-        if self.cfg.get("region_coords", False):
-            coords = regions
 
         return {
                 "input" : input_x,

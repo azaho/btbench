@@ -14,7 +14,7 @@ class PtDownstreamModel(BaseModel):
     def forward(self, inputs, src_key_mask, positions, rep_from_layer=-1):
         outs = self.upstream(inputs, src_key_mask, positions, intermediate_rep=True)
 
-        h = outs[:,0,:]#
+        h = outs[:,0,:]
         #h = outs[:,1:,:].flatten(start_dim=1)
         #h = torch.zeros(h.shape).to(h.device)#TODO
 

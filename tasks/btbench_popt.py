@@ -66,9 +66,10 @@ class BTBenchPopTTask(BaseTask):
         end_neural_data_after_word_onset = btbench_config.SAMPLING_RATE * 1 # the number of samples to end the neural data after each word onset -- here we use 1 second
 
         import btbench_train_test_splits
-        bt_train_datasets, bt_test_datasets = btbench_train_test_splits.generate_splits_SS_SM(subject, trial_id, eval_name, add_other_trials=False, k_folds=data_cfg.k_fold, dtype=torch.float32, #TODO take folds as argument
+        bt_train_datasets, bt_test_datasets = btbench_train_test_splits.generate_splits_SS_SM(subject, trial_id, eval_name, k_folds=data_cfg.k_fold, dtype=torch.float32, #TODO take folds as argument
                         # Put the dataset parameters here
-                        output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset)
+                        output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset,
+                        lite=True)#TODO
 
         from datasets.btbench_decode import BTBenchDecodingDataset
 
