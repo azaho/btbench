@@ -25,6 +25,7 @@ declare -a eval_names=(
 )
 LOWER_BOUND=$1
 UPPER_BOUND=$2
+NUM_JOBS=10
 
 for EVAL_IDX in {0..18}
 do
@@ -36,6 +37,13 @@ SUBJECT=${subjects[$PAIR_IDX]}
 TRIAL=${trials[$PAIR_IDX]}
 
 echo "Running eval $PAIR_IDX for eval $EVAL_NAME, subject $SUBJECT, trial $TRIAL"
-python single_electrode.py --subject $SUBJECT --trial $TRIAL --verbose --eval_name $EVAL_NAME
+(python single_electrode.py --subject $SUBJECT --trial $TRIAL --verbose --eval_name $EVAL_NAME) &
+
+# Limit the number of parallel jobs
+if (( $(jobs -r -p | wc -l) >= NUM_JOBS )); then
+wait -n # Wait for any job to complete
+fi
+
 done
 done
+wait

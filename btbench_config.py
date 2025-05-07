@@ -1,6 +1,6 @@
 # Feel free to change this setting to your own directory.
-#ROOT_DIR = "/storage/czw/braintreebank_data" # Root directory for the braintreebank data
-ROOT_DIR = "/storage/czw/braintreebank_data_popt_preprocessed" # Root directory for the braintreebank data
+ROOT_DIR = "/storage/czw/braintreebank_data" # Root directory for the braintreebank data
+#ROOT_DIR = "/storage/czw/braintreebank_data_popt_preprocessed" # Root directory for the braintreebank data
 
 # NOTE: Settings in this file below this line have global effect on the code. All parts of the pipeline have to run with the same settings.
 # If you want to change a setting, you have to rerun all parts of the pipeline with the new setting. Otherwise, things will break.
