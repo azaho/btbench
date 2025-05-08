@@ -63,11 +63,10 @@ Pre-reqs:
 ### Write the BTBench tasks
 - First, let's write all the BrainBERT embeddings for the BTBench tasks to disk
 ```
-python3 -m data.write_multi_subject_multi_channel_btbench +data_prep=pretrain_multi_subj_multi_chan_template \
-+data=subject_data_template ++data_prep.task_name=volume +preprocessor=multi_elec_spec_pretrained \
-++data_prep.electrodes=/storage/czw/btbench/electrode_selections/clean_laplacian.json \
-++data_prep.brain_runs=/storage/czw/btbench/trial_selections/test_trials.json \
-++data_prep.output_directory=/storage/czw/btbench/saved_examples/btbench_popt_embeds \
+python3 -m data.write_multi_subject_multi_channel_btbench +data_prep=pretrain_multi_subj_multi_chan_template +data=subject_data_template ++data_prep.task_name=volume +preprocessor=multi_elec_spec_pretrained \
+++data_prep.electrodes=/storage/czw/PopTCameraReadyPrep/electrode_selections/clean_laplacian.json \
+++data_prep.brain_runs=/storage/czw/PopTCameraReadyPrep/trial_selections/lite_trials.json \
+++data_prep.output_directory=/storage/czw/btbench/saved_examples/btbench_popt_embeds_lite \
 ++preprocessor.upstream_ckpt=/storage/czw/self_supervised_seeg/pretrained_weights/stft_large_pretrained.pth \
 ++data.raw_brain_data_dir=/storage/czw/braintreebank_data/ \
 ++data.movie_transcripts_dir=/storage/czw/braintreebank_data/transcripts

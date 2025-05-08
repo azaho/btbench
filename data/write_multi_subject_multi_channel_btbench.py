@@ -34,8 +34,6 @@ def write_outputs(dataset, extracter, output_path):
         all_embeddings = extracter(raw_neural_data).numpy()
 
         fname = f"sub_{subject_id}_trial_{trial_id}_s_{est_idx}_e_{est_end_idx}"
-        if fname=="sub_2_trial_6_s_10699088_e_10701136": #TODO
-            import pdb; pdb.set_trace()
         save_path = os.path.join(output_path, f'{fname}.npy')
         np.save(save_path, all_embeddings)
 
@@ -78,7 +76,7 @@ def write_trial_data(subject_id, brain_run, extracter, data_cfg_template_copy, c
     #print("\nElectrode coordinates:")
     #print(subject.get_electrode_coordinates()) # L, P, I coordinates of the electrodes
 
-    popt_coords = localization_df[localization_df.Electrode.isin(selected_electrodes)][['L','P','I']]
+    popt_coords = localization_df[localization_df.Electrode.isin(selected_electrodes)][['L','I','P']]
     btbench_coords = subject.get_electrode_coordinates()
     
     #print(btbench_coords.cpu().numpy())
@@ -100,7 +98,7 @@ def write_trial_data(subject_id, brain_run, extracter, data_cfg_template_copy, c
     end_neural_data_after_word_onset = int(btbench_config.SAMPLING_RATE * 1.0) # the number of samples to end the neural data after each word onset -- here we use 1.0 second
 
     dataset = BrainTreebankSubjectTrialBenchmarkDataset(subject, trial_id, dtype=torch.float32, eval_name=eval_name, output_indices=output_indices, 
-                                                        start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset)
+                                                        start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset, lite=True)
 
     #print("Items in the dataset:", len(dataset), "\n")
     #print("The first item:", dataset[0][0], f"label = {dataset[0][1]}", sep="\n")
@@ -144,13 +142,10 @@ def main(cfg: DictConfig) -> None:
     with open(cfg.data_prep.electrodes, "r") as f:
         electrodes = json.load(f)
 
-    #eval_tasks = ["frame_brightness", "global_flow", "local_flow", "global_flow_angle", "local_flow_angle", "face_num", "volume", "pitch", "delta_volume", "delta_pitch", "speech", "onset", "gpt2_surprisal", "word_length", "word_gap", "word_index", "word_head_pos", "word_part_speech", "speaker"]
-    eval_tasks = ["pitch", "delta_volume", "delta_pitch"]
-    #eval_tasks = ["speech"]
+    eval_tasks = ["frame_brightness", "global_flow", "local_flow", "global_flow_angle", "local_flow_angle", "face_num", "volume", "pitch", "delta_volume", "delta_pitch", "speech", "onset", "gpt2_surprisal", "word_length", "word_gap", "word_index", "word_head_pos", "word_part_speech", "speaker"]
 
     for eval_task in eval_tasks:
         log.info(f"Task {eval_task}")
-        #for subject in ["sub_2"]: #TODO
         for subject in brain_runs:
             data_cfg_template = cfg.data.copy()
             log.info(f'Writing features for {subject}')
@@ -169,9 +164,6 @@ def main(cfg: DictConfig) -> None:
                 #print(electrodes[subject])
                 write_trial_data(subject, brain_run, extracter, data_cfg_template_copy, cfg)
                 log.info(f'Obtained brain data and labels {brain_run}')
-                break#TODO
-            break#TODO
-        break#TODO
 
 if __name__ == "__main__":
     main()
