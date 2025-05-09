@@ -40,7 +40,6 @@ class BTBenchPopTTask(BaseTask):
         assert len(data_cfg.brain_runs)==1
         trial_id = int(data_cfg.brain_runs[0][len("trial"):])
 
-        subject.load_neural_data(trial_id)
         window_from = None
         window_to = None # if None, the whole trial will be loaded
 
@@ -107,22 +106,13 @@ class BTBenchPopTTask(BaseTask):
         predicts = [np.array([p]) if len(p.shape)==0 else p for p in predicts]
         predicts = np.concatenate(predicts)
 
-        #TODO: predicts needs to be a softmax not a logistic
-        roc_auc = -1
-        f1 = -1
-        if max(labels) <= 1:
-            roc_auc = roc_auc_score(labels, predicts[:,1])#TODO check
-            f1 = f1_score(labels, np.round(predicts[:,1]))#TODO check
-        else:
-            try:
-                roc_auc = roc_auc_score(labels, predicts, multi_class='ovr', average='macro')
-            except:
-                roc_auc = np.nan #This occurs sometimes when the validation set is so small that it does not contain enough samples of each class. Given that I don't use the val roc_auc for anything, I think this is acceptable
+        roc_auc = roc_auc_score(labels, predicts)
+        f1 = f1_score(labels, np.round(predicts))
 
         all_outs["roc_auc"] = roc_auc
         all_outs["f1"] = f1
 
-        accuracy = accuracy_score(labels, (predicts).argmax(axis=1))
+        accuracy = accuracy_score(labels, np.round(predicts))
         all_outs["loss"] /= len(valid_loader)
         all_outs["accuracy"] = accuracy
         all_outs["predicts"] = predicts.tolist()

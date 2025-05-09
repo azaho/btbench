@@ -227,8 +227,8 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
         
 
     def _get_neural_data(self, window_from, window_to, force_output_indices=False):
-        self.subject.load_neural_data(self.trial_id, cache_window_from=self.cache_window_from, cache_window_to=self.cache_window_to)
         if not self.output_indices and not force_output_indices:
+            self.subject.load_neural_data(self.trial_id, cache_window_from=self.cache_window_from, cache_window_to=self.cache_window_to)
             input = self.subject.get_all_electrode_data(self.trial_id, window_from=window_from, window_to=window_to)
             if self.lite:
                 input = input[self.electrode_indices_subset]

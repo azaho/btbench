@@ -60,11 +60,7 @@ def main(cfg: DictConfig) -> None:
     results_dir = os.path.join(results_dir_root, f"{subject}_{brain_run}_{eval_name}")
     cfg.exp.runner.results_dir=results_dir
 
-    cfg['model']['output_dim'] = 2
-    if eval_name in ["global_flow_angle", "local_flow_angle", "word_index"]:
-        cfg['model']['output_dim'] = 4
-    elif eval_name in ["face_num", "word_head_pos", "word_part_speech", "speaker"]:
-        cfg['model']['output_dim'] = 3
+    cfg['model']['output_dim'] = 1
     cross_val(cfg)
 
 if __name__ == "__main__":

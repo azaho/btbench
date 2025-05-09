@@ -90,11 +90,14 @@ def create_performance_figure():
 
     # Define models
     models = ['Linear (raw voltage)', f'Linear (FFT - real+imag, {ms_per_seg}ms)', f'Linear (FFT - abs+angle, {ms_per_seg}ms)', f'Linear (spectrogram, {ms_per_seg}ms)', 
-              'BrainBERT (granularity=1)', 'BrainBERT (granularity=4)', 'BrainBERT (granularity=16)', 'BrainBERT (granularity=-1)']
+              'BrainBERT (granularity=1)', 'BrainBERT (granularity=4)', 'BrainBERT (res=16)', 'BrainBERT (res=-1)']
     
+    models = ['Linear (raw voltage)', 'Linear (-line noise)', 'Linear (<200Hz)', 'Linear (<200Hz, -line noise)',
+              f'Linear (FFT - abs, {ms_per_seg}ms)', f'Linear (FFT - real+imag, {ms_per_seg}ms)',
+              'BrainBERT (res=4)', 'BrainBERT (res=-1)']
     # Define models
-    models = [f'Linear (spectrogram, {ms_per_seg}ms)', 
-              'BrainBERT (granularity=1)', 'BrainBERT (granularity=4)', 'BrainBERT (granularity=16)', 'BrainBERT (granularity=-1)']
+    # models = [f'Linear (spectrogram, {ms_per_seg}ms)', 
+    #           'BrainBERT (granularity=1)', 'BrainBERT (granularity=4)', 'BrainBERT (granularity=16)', 'BrainBERT (granularity=-1)']
     
     subject_trials = BTBENCH_LITE_SUBJECT_TRIALS
     metric = 'AUROC' # 'AUROC'
@@ -111,15 +114,19 @@ def create_performance_figure():
             subject_trial_means = []
             for subject_id, trial_id in subject_trials:
                 nperseg_suffix = f'_nperseg{nperseg}' if nperseg != 256 else ''
-                if model.startswith('Linear (raw voltage'):
+                if model.startswith('Linear (raw voltage)'):
                     filename = f'eval_results_lite_SS_SM/linear_voltage/population_btbank{subject_id}_{trial_id}_{task}.json'
-                elif model.startswith('Linear (spectrogram'):
+                elif model.startswith('Linear (-line noise)'):
+                    filename = f'eval_results_lite_SS_SM/linear_remove_line_noise/population_btbank{subject_id}_{trial_id}_{task}.json'
+                elif model.startswith('Linear (<200Hz)'):
+                    filename = f'eval_results_lite_SS_SM/linear_downsample_200/population_btbank{subject_id}_{trial_id}_{task}.json'
+                elif model.startswith('Linear (<200Hz, -line noise)'):
+                    filename = f'eval_results_lite_SS_SM/linear_downsample_200-remove_line_noise/population_btbank{subject_id}_{trial_id}_{task}.json'
+                elif model.startswith('Linear (FFT - abs'):
                     filename = f'eval_results_lite_SS_SM/linear_fft_abs{nperseg_suffix}/population_btbank{subject_id}_{trial_id}_{task}.json'
                 elif model.startswith('Linear (FFT - real+imag'):
                     filename = f'eval_results_lite_SS_SM/linear_fft_realimag{nperseg_suffix}/population_btbank{subject_id}_{trial_id}_{task}.json'
-                elif model.startswith('Linear (FFT - abs+angle'):
-                    filename = f'eval_results_lite_SS_SM/linear_fft_absangle{nperseg_suffix}/population_btbank{subject_id}_{trial_id}_{task}.json'
-                elif model.startswith('BrainBERT (granularity='):
+                elif model.startswith('BrainBERT (res='):
                     granularity = model.split('=')[-1][:-1].strip()
                     filename = f'/om2/user/zaho/BrainBERT/eval_results_lite_SS_SM/brainbert_frozen_mean_granularity_{granularity}/population_btbank{subject_id}_{trial_id}_{task}.json'
                 if not os.path.exists(filename):
@@ -128,7 +135,10 @@ def create_performance_figure():
 
                 with open(filename, 'r') as json_file:
                     data = json.load(json_file)
-                data = data['evaluation_results'][f'btbank{subject_id}_{trial_id}']['population']['whole_window']
+                if 'one_second_after_onset' in data['evaluation_results'][f'btbank{subject_id}_{trial_id}']['population']:
+                    data = data['evaluation_results'][f'btbank{subject_id}_{trial_id}']['population']['one_second_after_onset'] 
+                else:
+                    data = data['evaluation_results'][f'btbank{subject_id}_{trial_id}']['population']['whole_window'] # for BrainBERT only
                 value = np.nanmean([fold_result['test_roc_auc'] for fold_result in data['folds']])
                 subject_trial_means.append(value)
             performance_data[task][model] = {
