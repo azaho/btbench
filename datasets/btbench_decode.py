@@ -1,3 +1,4 @@
+from btbench_config import  BTBENCH_LITE_ELECTRODES
 import random
 import os
 import torch
@@ -49,13 +50,25 @@ class BTBenchDecodingDataset(data.Dataset):
             df = df[df.Electrode.isin(selected_electrodes)] #These are all the electrodes, so let's trim them so they are just the ones that we've actually cached data for
             all_localization_dfs[subject] = df
 
+        for subject in ordered_electrodes:
+            sub_id = subject[len("sub_"):]
+            key = f"btbank{sub_id}"
+            if key in BTBENCH_LITE_ELECTRODES:
+                lite_electrodes = BTBENCH_LITE_ELECTRODES[key]
+                sub_ordered_electrodes = ordered_electrodes[subject]
+                lite_sub_ordered = [e for e in sub_ordered_electrodes if e in lite_electrodes]
+                ordered_electrodes[subject] = lite_sub_ordered
+
         if "sub_sample_electrodes" in cfg:
             sub_sample_electrodes_path = cfg.sub_sample_electrodes
             with open(sub_sample_electrodes_path, 'r') as f:
                 sub_sample_electrodes = json.load(f)
             ordered_electrodes, all_localization_dfs = self.make_sub_sample(ordered_electrodes, all_localization_dfs, sub_sample_electrodes)
+        else:
+            ordered_electrodes, all_localization_dfs = self.make_sub_sample(ordered_electrodes, all_localization_dfs, ordered_electrodes)
 
         self.ordered_electrodes = ordered_electrodes
+
         self.all_localization_dfs = all_localization_dfs
 
         label2idx_dict = {}
@@ -65,7 +78,7 @@ class BTBenchDecodingDataset(data.Dataset):
         self.label2idx_dict = label2idx_dict
         self.idx2label_dict = {k:v for v,k in label2idx_dict.items()}
 
-        self.absolute_id = {subj: [elec2absolute_id[subj][elec] for elec in elecs] for subj,elecs in ordered_electrodes.items()} #A map from subject to a list of indices of the sub sampled channels
+        self.absolute_id = {subj: [elec2absolute_id[subj][elec] for elec in elecs] for subj,elecs in self.ordered_electrodes.items()} #A map from subject to a list of indices of the sub sampled channels
 
         self.region2id = {}
         all_dk_regions = set()
@@ -77,8 +90,8 @@ class BTBenchDecodingDataset(data.Dataset):
         self.id2region = {i:r for r,i in self.region2id.items()} 
 
         self.coords_dict = {}
-        for subject in ordered_electrodes.keys():
-            self.coords_dict[subject] = all_localization_dfs[subject][["L", "I", "P"]].to_numpy()
+        for subject in self.ordered_electrodes.keys():
+            self.coords_dict[subject] = self.all_localization_dfs[subject][["L", "I", "P"]].to_numpy()
 
         if self.cfg.get("region_coords", False):
             raise ValueError("Not implemented")
@@ -138,6 +151,7 @@ class BTBenchDecodingDataset(data.Dataset):
         fpath, subject = self.manifest[idx]
         input_x = np.load(fpath)
         input_x = self.extracter(input_x)
+
         input_x = torch.FloatTensor(input_x[self.absolute_id[subject],:])#sub sample the channels based on selection
 
         embed_dim = input_x.shape[-1]
@@ -150,7 +164,6 @@ class BTBenchDecodingDataset(data.Dataset):
 
         seq_len = input_x.shape[0] - 1
         seq_id = torch.LongTensor([0]*seq_len)
-
         return {
                 "input" : input_x,
                 "wav": np.zeros(3),#TODO get rid of this
