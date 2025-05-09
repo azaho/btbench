@@ -1,3 +1,4 @@
+from glob import glob as glob
 import pandas as pd
 import torch
 from braintreebank_subject import BrainTreebankSubject
@@ -27,24 +28,25 @@ from scipy.stats import zscore
 
 log = logging.getLogger(__name__)
 
-def write_outputs(dataset, extracter, output_path):
+def write_outputs(dataset, extracter, output_path, all_file_names):
+    file_names = []
     for item in tqdm(dataset):
         raw_neural_data, label, subject_id, trial_id, est_idx, est_end_idx = item
-        raw_neural_data = raw_neural_data.cpu().numpy()
-        all_embeddings = extracter(raw_neural_data).numpy()
-
         fname = f"sub_{subject_id}_trial_{trial_id}_s_{est_idx}_e_{est_end_idx}"
-        save_path = os.path.join(output_path, f'{fname}.npy')
-        np.save(save_path, all_embeddings)
+        if fname not in all_file_names:
+            raw_neural_data = raw_neural_data.cpu().numpy()
+            all_embeddings = extracter(raw_neural_data).numpy()
 
-def write_trial_data(subject_id, brain_run, extracter, data_cfg_template_copy, cfg):
+            save_path = os.path.join(output_path, f'{fname}.npy')
+            np.save(save_path, all_embeddings)
+            file_names.append(fname)
+    return file_names
+
+def write_trial_data(subject, subject_name, brain_run, extracter, data_cfg_template_copy, cfg, all_file_names):
     ### START BTBENCH WORK HERE
-    subject_id = int(subject_id[len("sub_"):])
-
-    # use cache=True to load this trial's neural data into RAM, if you have enough memory!
-    # It will make the loading process faster.
-    subject = BrainTreebankSubject(subject_id, allow_corrupted=False, cache=True, dtype=torch.float32)
     #print("Electrode labels:", subject.electrode_labels) # list of electrode labels
+    subject_id = int(subject_name[len("sub_"):])
+    trial_id = int(brain_run[len("trial"):])
 
     # Optionally, subset the electrodes to a specific set of electrodes.
     selected_electrodes = data_cfg_template_copy.electrodes
@@ -64,28 +66,14 @@ def write_trial_data(subject_id, brain_run, extracter, data_cfg_template_copy, c
     subject.set_electrode_subset(selected_electrodes) # if you change this line when using cache=True, you need to clear the cache after: subject.clear_neural_data_cache()
     #print("Electrode labels after subsetting:", subject.electrode_labels)
 
-    trial_id = int(brain_run[len("trial"):])
-
-    subject.load_neural_data(trial_id)
     window_from = None
     window_to = None # if None, the whole trial will be loaded
-
-    #print("All neural data shape:")
-    #print(subject.get_all_electrode_data(trial_id, window_from=window_from, window_to=window_to).shape) # (n_electrodes, n_samples). To get the data for a specific electrode, use subject.get_electrode_data(trial_id, electrode_label)
-
-    #print("\nElectrode coordinates:")
-    #print(subject.get_electrode_coordinates()) # L, P, I coordinates of the electrodes
 
     popt_coords = localization_df[localization_df.Electrode.isin(selected_electrodes)][['L','I','P']]
     btbench_coords = subject.get_electrode_coordinates()
     
-    #print(btbench_coords.cpu().numpy())
-    #print(popt_coords.to_numpy())
     assert (btbench_coords.cpu().numpy() == popt_coords.to_numpy()).all()
 
-    # Options for eval_name (from the BTBench paper):
-    #   frame_brightness, global_flow, local_flow, global_flow_angle, local_flow_angle, face_num, volume, pitch, delta_volume, 
-    #   delta_pitch, speech, onset, gpt2_surprisal, word_length, word_gap, word_index, word_head_pos, word_part_speech, speaker
     eval_name = cfg.data_prep.task_name
 
     # if True, the dataset will output the indices of the samples in the neural data in a tuple: (index_from, index_to); 
@@ -104,7 +92,7 @@ def write_trial_data(subject_id, brain_run, extracter, data_cfg_template_copy, c
     #print("The first item:", dataset[0][0], f"label = {dataset[0][1]}", sep="\n")
 
     Path(cfg.data_prep.output_directory).mkdir(exist_ok=True, parents=True)
-    write_outputs(dataset, extracter, cfg.data_prep.output_directory) 
+    file_names = write_outputs(dataset, extracter, cfg.data_prep.output_directory, all_file_names) 
 
     localization_dir = os.path.join(cfg.data_prep.output_directory, "localization")
     sub_loc_path = os.path.join(localization_dir, f"sub_{subject_id}.csv")
@@ -128,6 +116,8 @@ def write_trial_data(subject_id, brain_run, extracter, data_cfg_template_copy, c
     with open(ordered_electrodes_path, "w") as f:
         json.dump(loaded_elecs,f)
 
+    return file_names
+
 @hydra.main(version_base=None, config_path="../conf")
 def main(cfg: DictConfig) -> None:
     log.info("Writing data to disk")
@@ -144,26 +134,35 @@ def main(cfg: DictConfig) -> None:
 
     eval_tasks = ["frame_brightness", "global_flow", "local_flow", "global_flow_angle", "local_flow_angle", "face_num", "volume", "pitch", "delta_volume", "delta_pitch", "speech", "onset", "gpt2_surprisal", "word_length", "word_gap", "word_index", "word_head_pos", "word_part_speech", "speaker"]
 
-    for eval_task in eval_tasks:
-        log.info(f"Task {eval_task}")
-        for subject in brain_runs:
-            data_cfg_template = cfg.data.copy()
-            log.info(f'Writing features for {subject}')
-            log.info(electrodes[subject])
-            log.info(brain_runs[subject])
-            data_cfg_template["subject"] = subject
-            data_cfg_template["electrodes"] = electrodes[subject]
+    Path(cfg.data_prep.output_directory).mkdir(exist_ok=True, parents=True)
+    all_file_names = set(glob(f"{cfg.data_prep.output_directory}/*"))
+    for subject_name in brain_runs:
+        data_cfg_template = cfg.data.copy()
+        log.info(f'Writing features for {subject_name}')
+        log.info(electrodes[subject_name])
+        log.info(brain_runs[subject_name])
+        data_cfg_template["subject"] = subject_name
+        data_cfg_template["electrodes"] = electrodes[subject_name]
+
+        for brain_run in brain_runs[subject_name]:
+            log.info(f'Writing features for {brain_run}')
 
             data_cfg_template_copy = data_cfg_template.copy()
-            for brain_run in brain_runs[subject]:
-                log.info(f'Writing features for {brain_run}')
-                data_cfg_template_copy["brain_runs"] = [brain_run]
+            data_cfg_template_copy["brain_runs"] = [brain_run]
+
+            subject_id = int(subject_name[len("sub_"):])
+
+            # use cache=True to load this trial's neural data into RAM, if you have enough memory!
+            # It will make the loading process faster.
+            subject = BrainTreebankSubject(subject_id, allow_corrupted=False, cache=True, dtype=torch.float32)
+            trial_id = int(brain_run[len("trial"):])
+            subject.load_neural_data(trial_id)
+            for eval_task in eval_tasks:
+                log.info(f"Task {eval_task} {subject_name} {brain_run}")
                 cfg.data_prep.task_name = eval_task
 
-                log.info(f'Obtaining brain data and labels {brain_run}')
-                #print(electrodes[subject])
-                write_trial_data(subject, brain_run, extracter, data_cfg_template_copy, cfg)
-                log.info(f'Obtained brain data and labels {brain_run}')
+                file_names = write_trial_data(subject, subject_name, brain_run, extracter, data_cfg_template_copy, cfg, all_file_names)
+                all_file_names = all_file_names.union(set(file_names))
 
 if __name__ == "__main__":
     main()
