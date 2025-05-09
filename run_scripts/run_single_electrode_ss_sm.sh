@@ -25,10 +25,35 @@ declare -a eval_names=(
 )
 LOWER_BOUND=$1
 UPPER_BOUND=$2
-NUM_JOBS=40
+MAX_PARALLEL=40
 
 CPU_ID=0
 
+# Array to track PIDs and their assigned cores
+declare -A pid_to_core
+declare -a available_cores
+
+# Initialize available core list
+for i in $(seq 0 $((MAX_PARALLEL - 1))); do
+  available_cores+=($i)
+done
+
+# Function to launch a job
+launch_job() {
+  local job_id=$1
+  local core=$2
+  local EVAL_NAME=$3
+  local SUBJECT=$4
+  local TRIAL=$5
+
+  echo "Running eval $PAIR_IDX for eval $EVAL_NAME, subject $SUBJECT, trial $TRIAL on CPU $CPU_ID"
+  (taskset -c "$core" python eval_single_electrode.py --subject $SUBJECT --trial $TRIAL --verbose --eval_name $EVAL_NAME --preprocess remove_line_noise) &
+  local pid=$!
+  pid_to_core[$pid]=$core
+  echo "Started job $job_id on CPU core $core (PID $pid)"
+}
+
+job_count=0
 for EVAL_IDX in {0..18}
 do
 for ((PAIR_IDX=LOWER_BOUND; PAIR_IDX<=UPPER_BOUND; PAIR_IDX++))
@@ -38,17 +63,27 @@ EVAL_NAME=${eval_names[$EVAL_IDX]}
 SUBJECT=${subjects[$PAIR_IDX]}
 TRIAL=${trials[$PAIR_IDX]}
 
-echo "Running eval $PAIR_IDX for eval $EVAL_NAME, subject $SUBJECT, trial $TRIAL on CPU $CPU_ID"
-(taskset -c $CPU_ID python eval_single_electrode.py --subject $SUBJECT --trial $TRIAL --verbose --eval_name $EVAL_NAME --preprocess remove_line_noise) &
+  while [[ ${#available_cores[@]} -eq 0 ]]; do
+    wait -n
+    for pid in "${!pid_to_core[@]}"; do
+      if ! kill -0 "$pid" 2>/dev/null; then
+        core=${pid_to_core[$pid]}
+        available_cores+=($core)
+        unset pid_to_core[$pid]
+        echo "Job with PID $pid finished. Core $core is now available."
+      fi
+    done
+    sleep 1
+  done
 
-let "CPU_ID++"
-CPU_ID=$((CPU_ID % NUM_JOBS))
-
-# Limit the number of parallel jobs
-if (( $(jobs -r -p | wc -l) >= NUM_JOBS )); then
-wait -n # Wait for any job to complete
-fi
+  # Get an available core and launch the job
+  core=${available_cores[0]}
+  available_cores=("${available_cores[@]:1}")
+  launch_job $job_count $core $EVAL_NAME $SUBJECT $TRIAL
+  ((job_count++))
 
 done
 done
-wait
+echo "All jobs completed."
+
+
