@@ -152,7 +152,9 @@ class BTBenchDecodingDataset(data.Dataset):
         input_x = np.load(fpath)
         input_x = self.extracter(input_x)
 
-        input_x = torch.FloatTensor(input_x[self.absolute_id[subject],:])#sub sample the channels based on selection
+        #NOTE: commenting out the below because the cache is actually already sub-sampled.
+        #input_x = torch.FloatTensor(input_x[self.absolute_id[subject],:])#sub sample the channels based on selection
+        input_x = torch.FloatTensor(input_x)
 
         embed_dim = input_x.shape[-1]
         cls_token = torch.ones(1,embed_dim)

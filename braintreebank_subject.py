@@ -147,7 +147,6 @@ class BrainTreebankSubject:
         self.h5_files[trial_id] = h5py.File(neural_data_file, 'r')
         self.electrode_data_length[trial_id] = self.h5_files[trial_id]['data'][self.h5_neural_data_keys[self.electrode_labels[0]]].shape[0]
     def load_neural_data(self, trial_id, cache_window_from=None, cache_window_to=None):
-        import pdb; pdb.set_trace()
         if self.cache: self.cache_neural_data(trial_id, cache_window_from=cache_window_from, cache_window_to=cache_window_to)
         else: self.open_neural_data_file(trial_id)
     
