@@ -307,13 +307,13 @@ for eval_name in eval_names:
             else:
                 results_electrode[electrode_label]["time_bins"].append(bin_results) # time bin results
 
-        if electrode_idx % 2 == 0:
-            # Save after each electrode is processed
-            os.makedirs(save_dir, exist_ok=True)
-            with open(f"{save_dir}/{filename}", "w") as f:
-                json.dump(results, f, indent=4)
-            if verbose:
-                log(f"Results saved to {save_dir}/{filename} after processing electrode {electrode_label}", priority=0)
+        #if electrode_idx % 2 == 0:
+        # Save after each electrode is processed
+        os.makedirs(save_dir, exist_ok=True)
+        with open(f"{save_dir}/{filename}", "w") as f:
+            json.dump(results, f, indent=4)
+        if verbose:
+            log(f"Results saved to {save_dir}/{filename} after processing electrode {electrode_label}", priority=0)
 
     # Remove final save since we're saving after each electrode
     if verbose:

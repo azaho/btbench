@@ -5,7 +5,7 @@
 #SBATCH --mem=6G
 #SBATCH --exclude=dgx001,dgx002
 #SBATCH -t 48:00:00         # total run time limit (HH:MM:SS) (increased to 24 hours)
-#SBATCH --array=1-456  # 285 if doing mini btbench
+#SBATCH --array=1-988  # 285 if doing mini btbench
 #SBATCH --output logs/%A_%a.out # STDOUT
 #SBATCH --error logs/%A_%a.err # STDERR
 #SBATCH -p use-everything
@@ -60,7 +60,7 @@ echo "Using python: $(which python)"
 echo "Using python version: $(python --version)"
 
 echo "Running eval for eval $EVAL_NAME, subject $SUBJECT, trial $TRIAL, splits_type $SPLITS_TYPE"
-echo "Command: python -u single_electrode.py --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL --splits_type $SPLITS_TYPE --verbose --save_dir $SAVE_DIR"
+echo "Command: python -u eval_single_electrode.py --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL --splits_type $SPLITS_TYPE --verbose --save_dir $SAVE_DIR"
 
 # Add the -u flag to Python to force unbuffered output
-.venv/bin/python -u single_electrode.py --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL --splits_type $SPLITS_TYPE --verbose --save_dir $SAVE_DIR
+.venv/bin/python -u eval_single_electrode.py --eval_name $EVAL_NAME --subject $SUBJECT --trial $TRIAL --splits_type $SPLITS_TYPE --verbose --save_dir $SAVE_DIR

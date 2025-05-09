@@ -6,6 +6,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 import torch, numpy as np
 import argparse, json, os, time, psutil
+import gc  # Add at top with other imports
 
 
 preprocess_options = [
@@ -244,6 +245,7 @@ for eval_name in eval_names:
             y_train = np.array([item[1] for item in train_dataset])
             X_test = np.array([preprocess_data(item[0][:, data_idx_from:data_idx_to].float().numpy()) for item in test_dataset])
             y_test = np.array([item[1] for item in test_dataset])
+            gc.collect()  # Collect after creating large arrays
 
             # Flatten the data after preprocessing in-place
             X_train = X_train.reshape(X_train.shape[0], -1)
@@ -255,6 +257,7 @@ for eval_name in eval_names:
             scaler = StandardScaler(copy=False)
             X_train = scaler.fit_transform(X_train)
             X_test = scaler.transform(X_test)
+            gc.collect()  # Collect after standardization
 
             log(f"Training model...", priority=2, indent=1)
 
@@ -269,6 +272,7 @@ for eval_name in eval_names:
             # Get predictions - for multiclass classification
             train_probs = clf.predict_proba(X_train)
             test_probs = clf.predict_proba(X_test)
+            gc.collect()  # Collect after predictions
 
             # Filter test samples to only include classes that were in training
             valid_class_mask = np.isin(y_test, clf.classes_)
@@ -302,6 +306,13 @@ for eval_name in eval_names:
                 "test_roc_auc": float(test_roc)
             }
             bin_results["folds"].append(fold_result)
+            
+            # Clean up variables no longer needed
+            del X_train, y_train, X_test, y_test, train_probs, test_probs
+            del y_test_filtered, test_probs_filtered, y_test_onehot, y_train_onehot
+            del clf, scaler
+            gc.collect()  # Collect after cleanup
+
             if verbose: 
                 log(f"Population, Fold {fold_idx+1}, Bin {bin_start}-{bin_end}: Train accuracy: {train_accuracy:.3f}, Test accuracy: {test_accuracy:.3f}, Train ROC AUC: {train_roc:.3f}, Test ROC AUC: {test_roc:.3f}", priority=0, indent=0)
 
@@ -335,3 +346,7 @@ for eval_name in eval_names:
         json.dump(results, f, indent=4)
     if verbose:
         log(f"Results saved to {file_save_path}", priority=0)
+
+    # Clean up at end of each eval_name loop
+    del train_datasets, test_datasets
+    gc.collect()
