@@ -5,7 +5,7 @@
 #SBATCH --mem=6G
 #SBATCH --exclude=dgx001,dgx002
 #SBATCH -t 48:00:00         # total run time limit (HH:MM:SS) (increased to 24 hours)
-#SBATCH --array=1-988  # 285 if doing mini btbench
+#SBATCH --array=1-494  # 285 if doing mini btbench
 #SBATCH --output logs/%A_%a.out # STDOUT
 #SBATCH --error logs/%A_%a.err # STDERR
 #SBATCH -p use-everything
@@ -38,7 +38,7 @@ declare -a eval_names=(
     "speaker"
 )
 declare -a splits_type=(
-    "SS_SM"
+    #"SS_SM"
     "SS_DM"
 )
 

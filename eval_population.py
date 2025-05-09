@@ -68,6 +68,8 @@ if not only_1second:
 
         bin_starts.append(bin_start)
         bin_ends.append(bin_end)
+    bin_starts += [-bins_start_before_word_onset_seconds]
+    bin_ends += [bins_end_after_word_onset_seconds]
 bin_starts += [0]
 bin_ends += [1]
 
