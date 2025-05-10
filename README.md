@@ -63,9 +63,11 @@ Pre-reqs:
 ### Write the BTBench tasks
 - First, let's write all the BrainBERT embeddings for the BTBench tasks to disk
 ```
-python3 -m data.write_multi_subject_multi_channel_btbench +data_prep=pretrain_multi_subj_multi_chan_template +data=subject_data_template ++data_prep.task_name=volume +preprocessor=multi_elec_spec_pretrained \
+python3 -m data.write_multi_subject_multi_channel_btbench \
++data_prep=pretrain_multi_subj_multi_chan_template +data=subject_data_template \
+++data_prep.task_name=volume +preprocessor=multi_elec_spec_pretrained \
 ++data_prep.electrodes=/storage/czw/PopTCameraReadyPrep/electrode_selections/clean_laplacian.json \
-++data_prep.brain_runs=/storage/czw/PopTCameraReadyPrep/trial_selections/lite_trials.json \
+++data_prep.brain_runs=/storage/czw/btbench/trial_selections/debug_trials.json \
 ++data_prep.output_directory=/storage/czw/btbench/saved_examples/btbench_popt_embeds_lite \
 ++preprocessor.upstream_ckpt=/storage/czw/self_supervised_seeg/pretrained_weights/stft_large_pretrained.pth \
 ++data.raw_brain_data_dir=/storage/czw/braintreebank_data/ \
@@ -79,21 +81,31 @@ Important arguments:
 Pre-reqs:
 - Grab randomized_replacement_no_gaussian_blur.pth from `victoria:/storage/czw/victoria/MultiBrainBERT/outputs`
 ```
-WEIGHTS=randomized_replacement_no_gaussian_blur; python3 run_cross_val.py +exp=multi_elec_feature_extract \
-++exp.runner.save_checkpoints=False ++model.frozen_upstream=False +task=btbench_popt \
-+criterion=pt_feature_extract_coords_criterion +data=btbench_decode +preprocessor=empty_preprocessor \
-+model=pt_downstream_model ++model.upstream_path=/storage/czw/PopTCameraReadyPrep/outputs/${WEIGHTS}.pth \
+WEIGHTS=randomized_replacement_no_gaussian_blur; python3 run_cross_val.py \
++exp=multi_elec_feature_extract ++exp.runner.save_checkpoints=False ++model.frozen_upstream=False \
++task=btbench_popt +criterion=pt_feature_extract_coords_criterion +data=btbench_decode \
++preprocessor=empty_preprocessor +model=pt_downstream_multiclass \
+++model.upstream_path=/storage/czw/PopTCameraReadyPrep/outputs/${WEIGHTS}.pth \
 ++model.upstream_cfg.use_token_cls_head=True ++model.upstream_cfg.name=pt_model_custom \
-++data.btbench_cache_path=/storage/czw/btbench/saved_examples/btbench_popt_embeds ++data.k_fold=5 \ 
-++exp.runner.num_workers=1 ++exp.runner.total_steps=1000 +data_prep=pretrain_multi_subj_multi_chan_template \
+++data.btbench_cache_path=/storage/czw/btbench/saved_examples/btbench_popt_embeds_lite \
+++data.k_fold=5 ++exp.runner.num_workers=0 ++exp.runner.total_steps=1000 \
++data_prep=pretrain_multi_subj_multi_chan_template \
 ++data_prep.electrodes=/storage/czw/btbench/electrode_selections/clean_laplacian.json \
-++data_prep.brain_runs=/storage/czw/btbench/trial_selections/test_trials.json \
-++data.raw_brain_data_dir=/storage/czw/braintreebank_data/ \
-++exp.runner.results_dir_root=/storage/czw/btbench/outputs/btbench_popt
+++data.raw_brain_data_dir=/storage/czw/braintreebank_data/ 
+++exp.runner.results_dir_root=/storage/czw/btbench/outputs/btbench_popt \
+++data.eval_name="frame_brightness" ++data.subject=1 ++data.brain_run=1 ++data.split_type="SS_DM"
 ```
 Important arguments:
 - `model.upstream_path` --- the path to the pretrained PopulationTransformer
 - `data.btbench_cache_path` --- the path to the cached BrainBERT embeddings for the BTBench tasks. This should match the output path from the first command.
+
+But usually, I'm running this scripts
+```
+run_scripts/run_popt_ss_sm.sh 0 11 SS_SM
+```
+- first argument is lower bound on subject-trial pair (12 total)
+- second argument is upper bound
+- third argument is split type (SS_DM or SS_SM)
 
 ## Citation
 
