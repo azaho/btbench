@@ -73,9 +73,11 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
         self.lite = lite
         self.n_classes = 0
 
-        if self.lite:
+        if self.lite and subject.subject_identifier in BTBENCH_LITE_ELECTRODES:
             lite_electrodes = BTBENCH_LITE_ELECTRODES[subject.subject_identifier]
             self.electrode_indices_subset = [subject.electrode_labels.index(e) for e in lite_electrodes if e in subject.electrode_labels]
+        else:
+            self.electrode_indices_subset = [subject.electrode_labels.index(e) for e in subject.electrode_labels]
 
         eval_name_remapped = eval_name
         if eval_name in single_float_variables_name_remapping: eval_name_remapped = single_float_variables_name_remapping[eval_name]
@@ -225,8 +227,8 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
         
 
     def _get_neural_data(self, window_from, window_to, force_output_indices=False):
-        self.subject.load_neural_data(self.trial_id, cache_window_from=self.cache_window_from, cache_window_to=self.cache_window_to)
         if not self.output_indices and not force_output_indices:
+            self.subject.load_neural_data(self.trial_id, cache_window_from=self.cache_window_from, cache_window_to=self.cache_window_to)
             input = self.subject.get_all_electrode_data(self.trial_id, window_from=window_from, window_to=window_to)
             if self.lite:
                 input = input[self.electrode_indices_subset]

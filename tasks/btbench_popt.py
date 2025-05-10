@@ -40,7 +40,6 @@ class BTBenchPopTTask(BaseTask):
         assert len(data_cfg.brain_runs)==1
         trial_id = int(data_cfg.brain_runs[0][len("trial"):])
 
-        subject.load_neural_data(trial_id)
         window_from = None
         window_to = None # if None, the whole trial will be loaded
 
@@ -66,10 +65,18 @@ class BTBenchPopTTask(BaseTask):
         end_neural_data_after_word_onset = btbench_config.SAMPLING_RATE * 1 # the number of samples to end the neural data after each word onset -- here we use 1 second
 
         import btbench_train_test_splits
-        bt_train_datasets, bt_test_datasets = btbench_train_test_splits.generate_splits_SS_SM(subject, trial_id, eval_name, k_folds=data_cfg.k_fold, dtype=torch.float32, #TODO take folds as argument
-                        # Put the dataset parameters here
+        if data_cfg.split_type=="SS_SM":
+            bt_train_datasets, bt_test_datasets = btbench_train_test_splits.generate_splits_SS_SM(subject, trial_id, eval_name, k_folds=data_cfg.k_fold, dtype=torch.float32,
+                            # Put the dataset parameters here
                         output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset,
-                        lite=True)#TODO
+                        lite=True)
+        elif data_cfg.split_type=="SS_DM":
+            bt_train_datasets, bt_test_datasets = btbench_train_test_splits.generate_splits_SS_DM(subject, trial_id, eval_name, dtype=torch.float32, #TODO take folds as argument
+                            # Put the dataset parameters here
+                        output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset,
+                        lite=True)
+            bt_train_datasets = [bt_train_datasets]
+            bt_test_datasets = [bt_test_datasets]
 
         from datasets.btbench_decode import BTBenchDecodingDataset
 
@@ -107,22 +114,13 @@ class BTBenchPopTTask(BaseTask):
         predicts = [np.array([p]) if len(p.shape)==0 else p for p in predicts]
         predicts = np.concatenate(predicts)
 
-        #TODO: predicts needs to be a softmax not a logistic
-        roc_auc = -1
-        f1 = -1
-        if max(labels) <= 1:
-            roc_auc = roc_auc_score(labels, predicts[:,1])#TODO check
-            f1 = f1_score(labels, np.round(predicts[:,1]))#TODO check
-        else:
-            try:
-                roc_auc = roc_auc_score(labels, predicts, multi_class='ovr', average='macro')
-            except:
-                roc_auc = np.nan #This occurs sometimes when the validation set is so small that it does not contain enough samples of each class. Given that I don't use the val roc_auc for anything, I think this is acceptable
+        roc_auc = roc_auc_score(labels, predicts)
+        f1 = f1_score(labels, np.round(predicts))
 
         all_outs["roc_auc"] = roc_auc
         all_outs["f1"] = f1
 
-        accuracy = accuracy_score(labels, (predicts).argmax(axis=1))
+        accuracy = accuracy_score(labels, np.round(predicts))
         all_outs["loss"] /= len(valid_loader)
         all_outs["accuracy"] = accuracy
         all_outs["predicts"] = predicts.tolist()

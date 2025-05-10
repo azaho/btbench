@@ -207,7 +207,6 @@ class MultiSubjBrainPositionalEncoding(nn.Module):
         n_batch, seq_len, n_axes, d_p_embed = p_embed.shape
         p_embed = p_embed.reshape(n_batch, seq_len, n_axes*d_p_embed)#flatten the last two dims into one position vector
         seq_id = self.pe[0,seq_id]
-        import pdb; pdb.set_trace()
         input_embeddings = torch.cat([p_embed, seq_id], axis=-1)
 
         batch_size, _, d_embed = seq.shape

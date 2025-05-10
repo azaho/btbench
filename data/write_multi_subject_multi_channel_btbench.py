@@ -135,7 +135,7 @@ def main(cfg: DictConfig) -> None:
     eval_tasks = ["frame_brightness", "global_flow", "local_flow", "global_flow_angle", "local_flow_angle", "face_num", "volume", "pitch", "delta_volume", "delta_pitch", "speech", "onset", "gpt2_surprisal", "word_length", "word_gap", "word_index", "word_head_pos", "word_part_speech", "speaker"]
 
     Path(cfg.data_prep.output_directory).mkdir(exist_ok=True, parents=True)
-    all_file_names = set(glob(f"{cfg.data_prep.output_directory}/*"))
+    all_file_names = set([Path(x).stem for x in glob(f"{cfg.data_prep.output_directory}/*")])
     for subject_name in brain_runs:
         data_cfg_template = cfg.data.copy()
         log.info(f'Writing features for {subject_name}')
