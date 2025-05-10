@@ -96,7 +96,7 @@ WEIGHTS=randomized_replacement_no_gaussian_blur; python3 run_cross_val.py \
 ++data.eval_name="frame_brightness" ++data.subject=1 ++data.brain_run=1 ++data.split_type="SS_DM" 
 ```
 Important arguments:
-m.upstream_path` --- the path to the pretrained PopulationTransformer. Make sure to change the path to somewhere in your directory, i.e., not in `czw`
+- `model.upstream_path` --- the path to the pretrained PopulationTransformer. Make sure to change the path to somewhere in your directory, i.e., not in `czw`
 - `data.btbench_cache_path` --- the path to the cached BrainBERT embeddings for the BTBench tasks. This should match the output path from the first command.
 - `data_prep.electrodes` --- this should be included in the repo. Just change the `czw` to your `<username>`
 - `data_prep.brain_data_dir` --- this is the path to the `braintreebank_data`. Just change the `czw` to your `<username>`
