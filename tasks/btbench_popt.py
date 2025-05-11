@@ -71,12 +71,20 @@ class BTBenchPopTTask(BaseTask):
                         output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset,
                         lite=True)
         elif data_cfg.split_type=="SS_DM":
-            bt_train_datasets, bt_test_datasets = btbench_train_test_splits.generate_splits_SS_DM(subject, trial_id, eval_name, dtype=torch.float32, #TODO take folds as argument
+            bt_train_datasets, bt_test_datasets = btbench_train_test_splits.generate_splits_SS_DM(subject, trial_id, eval_name, dtype=torch.float32, 
                             # Put the dataset parameters here
                         output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset,
                         lite=True)
             bt_train_datasets = [bt_train_datasets]
             bt_test_datasets = [bt_test_datasets]
+        elif data_cfg.split_type=="DS_DM":
+            bt_train_datasets, bt_test_datasets = btbench_train_test_splits.generate_splits_DS_DM(subject, trial_id, eval_name, dtype=torch.float32,
+                            # Put the dataset parameters here
+                        output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset,
+                        lite=True)
+            bt_train_datasets = [bt_train_datasets]
+            bt_test_datasets = [bt_test_datasets]
+            import pdb; pdb.set_trace()
 
         from datasets.btbench_decode import BTBenchDecodingDataset
 
