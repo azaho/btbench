@@ -37,7 +37,7 @@ all_tasks = single_float_variables + four_way_cardinal_direction_variables + ["o
 class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
     def __init__(self, subject, trial_id, dtype, eval_name, output_indices=False, 
                  start_neural_data_before_word_onset=START_NEURAL_DATA_BEFORE_WORD_ONSET * SAMPLING_RATE, end_neural_data_after_word_onset=END_NEURAL_DATA_AFTER_WORD_ONSET * SAMPLING_RATE,
-                 lite=False, random_seed=BTBENCH_GLOBAL_RANDOM_SEED, allow_partial_cache=True):
+                 lite=False, random_seed=BTBENCH_GLOBAL_RANDOM_SEED, allow_partial_cache=True, binary_tasks=True):
         """
         Args:
             subject (Subject): the subject to evaluate on
@@ -71,6 +71,7 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
         self.start_neural_data_before_word_onset = start_neural_data_before_word_onset
         self.end_neural_data_after_word_onset = end_neural_data_after_word_onset
         self.lite = lite
+        self.binary_tasks = binary_tasks
         self.n_classes = 0
 
         if self.lite:
@@ -127,10 +128,10 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
             self.negative_indices = np.sort(self.rng.choice(self.negative_indices, size=min_len, replace=False))
             self.n_samples = len(self.positive_indices) + len(self.negative_indices)
             self.n_classes = 2
-        elif eval_name in four_way_cardinal_direction_variables:
+        elif eval_name in four_way_cardinal_direction_variables: 
             self.class_labels = np.zeros(len(self.all_words_df), dtype=int)
             angles = self.all_words_df[self.eval_name_remapped].to_numpy()
-            cardinal_directions = np.array([0, 90, 180, 270]) if not self.lite else np.array([0, 180])
+            cardinal_directions = np.array([0, 90, 180, 270]) if not self.binary_tasks else np.array([0, 180])
             angles_expanded = angles[:, np.newaxis]
             distances = np.minimum(np.abs(angles_expanded - cardinal_directions),
                                 360 - np.abs(angles_expanded - cardinal_directions))
@@ -139,13 +140,13 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
             self.n_classes = len(cardinal_directions)
         elif eval_name == "face_num":
             self.n_samples = len(self.all_words_df)
-            self.n_classes = 3 if not self.lite else 2
+            self.n_classes = 3 if not self.binary_tasks else 2
             self.class_labels = self.all_words_df["face_num"].to_numpy().astype(int)
             self.class_labels[self.class_labels > self.n_classes-1] = self.n_classes-1 # cap at 2
             rebalance_classes = True
         elif eval_name == "word_index":
             self.n_samples = len(self.all_words_df)
-            self.n_classes = 4 if not self.lite else 2
+            self.n_classes = 4 if not self.binary_tasks else 2
             self.class_labels = self.all_words_df["idx_in_sentence"].to_numpy().astype(int)
             self.class_labels[self.class_labels > self.n_classes-1] = self.n_classes-1 # cap at 3
             rebalance_classes = True
@@ -156,14 +157,14 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
             self.n_classes = 2
         elif eval_name == "word_part_speech":
             self.n_samples = len(self.all_words_df)
-            self.n_classes = 4 if not self.lite else 2
+            self.n_classes = 4 if not self.binary_tasks else 2
             self.class_labels = np.ones(len(self.all_words_df)).astype(int) * (self.n_classes - 1)
             for i, pos in enumerate(["VERB", "NOUN", "PRON"][:self.n_classes-1]):
                 self.class_labels[self.all_words_df[self.eval_name_remapped] == pos] = i
             rebalance_classes = True                
         elif eval_name == "speaker":
             self.n_samples = len(self.all_words_df)
-            self.n_classes = 4 if not self.lite else 2
+            self.n_classes = 4 if not self.binary_tasks else 2
             self.class_labels = np.ones(len(self.all_words_df)).astype(int) * (self.n_classes - 1)
             most_frequent_speakers = self.all_words_df['speaker'].value_counts().index
             for i, speaker in enumerate(most_frequent_speakers[:self.n_classes-1]):
