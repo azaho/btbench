@@ -8,7 +8,7 @@ ROOT_DIR = "/storage/czw/braintreebank_data" # Root directory for the braintreeb
 SAVE_SUBJECT_TRIAL_DF_DIR = "/storage/czw/btbench/btbench_subject_metadata"
 #SAVE_SPEECH_SELECTIVITY_DATA_DIR = "btbench_speech_selectivity_data"
 SAVE_SPEECH_SELECTIVITY_DATA_DIR = "/storage/czw/btbench/btbench_speech_selectivity_data"
-PITCH_VOLUME_FEATURES_DIR = "btbench_pitch_volume_features" # This comes together with the btbench package
+PITCH_VOLUME_FEATURES_DIR = "/storage/czw/btbench/btbench_pitch_volume_features" # This comes together with the btbench package
 
 SAMPLING_RATE = 2048 # Sampling rate
 
