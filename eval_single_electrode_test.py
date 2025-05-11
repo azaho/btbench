@@ -28,7 +28,7 @@ parser.add_argument('--eval_name', type=str, default='onset', help='Evaluation n
 parser.add_argument('--subject', type=int, required=True, help='Subject ID')
 parser.add_argument('--trial', type=int, required=True, help='Trial ID')
 parser.add_argument('--verbose', action='store_true', help='Whether to print progress')
-parser.add_argument('--save_dir', type=str, default='eval_results', help='Directory to save results')
+parser.add_argument('--save_dir', type=str, default='eval_results_tests', help='Directory to save results')
 parser.add_argument('--preprocess', type=str, choices=preprocess_options, default='none', help=f'Preprocessing to apply to neural data ({", ".join(preprocess_options)})')
 parser.add_argument('--splits_type', type=str, choices=splits_options, default='SS_SM', help=f'Type of splits to use ({", ".join(splits_options)})')
 parser.add_argument('--seed', type=int, default=42, help='Random seed')
@@ -36,6 +36,8 @@ parser.add_argument('--nperseg', type=int, default=256, help='Length of each seg
 parser.add_argument('--only_1second', action='store_true', help='Whether to only evaluate on 1 second after word onset')
 parser.add_argument('--lite', action='store_true', help='Whether to use the lite eval for BTBench (which is the default)')
 parser.add_argument('--electrodes', type=str, default='all', help='Electrode labels to evaluate on. If multiple, separate with commas.')
+parser.add_argument('--n_samples_per_bin', type=int, default=1, help='Number of samples to use per bin')
+parser.add_argument('--skip_electrode_chance', type=float, default=0, help='Skip electrode chance')
 args = parser.parse_args()
 
 eval_names = args.eval_name.split(',') if ',' in args.eval_name else [args.eval_name]
@@ -50,7 +52,8 @@ lite = bool(args.lite)
 splits_type = args.splits_type
 nperseg = args.nperseg
 preprocess = args.preprocess
-
+n_samples_per_bin = args.n_samples_per_bin  
+skip_electrode_chance = args.skip_electrode_chance
 
 bins_start_before_word_onset_seconds = 0.5 if not only_1second else 0
 bins_end_after_word_onset_seconds = 1.5 if not only_1second else 1
@@ -66,8 +69,6 @@ if not only_1second:
 
         bin_starts.append(bin_start)
         bin_ends.append(bin_end)
-    bin_starts += [-bins_start_before_word_onset_seconds]
-    bin_ends += [bins_end_after_word_onset_seconds]
 bin_starts += [0]
 bin_ends += [1]
 
@@ -143,7 +144,6 @@ def remove_line_noise(data, fs=2048, line_freq=60):
     return filtered_data
 
 def preprocess_data(data):
-    data = data.numpy()
     for preprocess_option in preprocess.split('+'):
         if preprocess_option in ['fft_absangle', 'fft_realimag', 'fft_abs']:
             data = compute_stft(data, preprocess=preprocess_option)
@@ -154,7 +154,8 @@ def preprocess_data(data):
     return data
 
 for eval_name in eval_names:
-    save_dir = f"{save_dir}/linear_{preprocess if preprocess != 'none' else 'voltage'}{'_nperseg' + str(nperseg) if nperseg != 256 else ''}_single_electrode"
+    n_samples_per_bin_prefix = f"_nspb{n_samples_per_bin}"
+    save_dir = f"{save_dir}/linear_{preprocess if preprocess != 'none' else 'voltage'}{'_nperseg' + str(nperseg) if nperseg != 256 else ''}{n_samples_per_bin_prefix}_single_electrode"
     os.makedirs(save_dir, exist_ok=True)
     filename = f"electrode_{subject.subject_identifier}_{trial_id}_{eval_name}.json"
     
@@ -186,6 +187,10 @@ for eval_name in eval_names:
             if verbose:
                 log(f"Skipping electrode {electrode_label} - already processed", priority=0)
             continue
+        if np.random.rand() < skip_electrode_chance:
+            if verbose:
+                log(f"Skipping electrode {electrode_label} - random chance", priority=0)
+            continue
             
         subject.clear_neural_data_cache()
         subject.set_electrode_subset([electrode_label])
@@ -213,6 +218,19 @@ for eval_name in eval_names:
             train_datasets = [train_datasets]
             test_datasets = [test_datasets]
 
+        if only_1second:
+            bin_starts, bin_ends = [0], [1]
+        else:
+            # Loop over all time bins
+            bin_starts = np.arange(-bins_start_before_word_onset_seconds, bins_end_after_word_onset_seconds, bin_size_seconds)
+            bin_ends = bin_starts + bin_size_seconds
+            # Add a time bin for the whole window
+            bin_starts = np.append(bin_starts, -bins_start_before_word_onset_seconds)
+            bin_ends = np.append(bin_ends, bins_end_after_word_onset_seconds)
+            # Add a time bin for 1 second after the word onset
+            bin_starts = np.append(bin_starts, 0)
+            bin_ends = np.append(bin_ends, 1)
+
         for bin_start, bin_end in zip(bin_starts, bin_ends):
             data_idx_from = int((bin_start+bins_start_before_word_onset_seconds)*btbench_config.SAMPLING_RATE)
             data_idx_to = int((bin_end+bins_start_before_word_onset_seconds)*btbench_config.SAMPLING_RATE)
@@ -225,7 +243,6 @@ for eval_name in eval_names:
 
             # Loop over all folds
             for fold_idx in range(len(train_datasets)):
-                start_time = time.time()
                 train_dataset = train_datasets[fold_idx]
                 test_dataset = test_datasets[fold_idx]
 
@@ -234,6 +251,10 @@ for eval_name in eval_names:
                 y_train = np.array([item[1] for item in train_dataset])
                 X_test = np.array([preprocess_data(item[0][:, data_idx_from:data_idx_to].float().numpy()) for item in test_dataset])
                 y_test = np.array([item[1] for item in test_dataset])
+
+                # shape: n_batch, n_channels=1, n_samples
+                X_train = X_train.reshape(X_train.shape[0], 1, X_train.shape[-1]//n_samples_per_bin, n_samples_per_bin).mean(axis=-1)
+                X_test = X_test.reshape(X_test.shape[0], 1, X_test.shape[-1]//n_samples_per_bin, n_samples_per_bin).mean(axis=-1)
 
                 # Flatten the data after preprocessing
                 X_train = X_train.reshape(X_train.shape[0], -1)
@@ -245,7 +266,7 @@ for eval_name in eval_names:
                 X_test = scaler.transform(X_test)
 
                 # Train logistic regression
-                clf = LogisticRegression(random_state=seed, max_iter=10000, tol=1e-3, n_jobs=1)
+                clf = LogisticRegression(random_state=seed, max_iter=10000, tol=1e-3)
                 clf.fit(X_train, y_train)
 
                 # Evaluate model
@@ -288,10 +309,8 @@ for eval_name in eval_names:
                     "test_roc_auc": float(test_roc)
                 }
                 bin_results["folds"].append(fold_result)
-                end_time = time.time()
-                total_time = end_time - start_time
                 if verbose: 
-                    log(f"Electrode {electrode_label} ({electrode_idx+1}/{len(all_electrode_labels)}), Fold {fold_idx+1}, Bin {bin_start}-{bin_end}: Train accuracy: {train_accuracy:.3f}, Test accuracy: {test_accuracy:.3f}, Train ROC AUC: {train_roc:.3f}, Test ROC AUC: {test_roc:.3f} took {total_time}", priority=0)
+                    log(f"Electrode {electrode_label} ({electrode_idx+1}/{len(all_electrode_labels)}), Fold {fold_idx+1}, Bin {bin_start}-{bin_end}: Train accuracy: {train_accuracy:.3f}, Test accuracy: {test_accuracy:.3f}, Train ROC AUC: {train_roc:.3f}, Test ROC AUC: {test_roc:.3f}", priority=0)
 
             if bin_start == -bins_start_before_word_onset_seconds and bin_end == bins_end_after_word_onset_seconds:
                 results_electrode[electrode_label]["whole_window"] = bin_results # whole window results
@@ -310,5 +329,4 @@ for eval_name in eval_names:
 
     # Remove final save since we're saving after each electrode
     if verbose:
-        log(f"Results saved to {save_dir}/linear_regression_electrode_{subject.subject_identifier}_{trial_id}_{eval_name}.json", priority=0)
         log(f"All electrodes processed for {eval_name}", priority=0)
