@@ -57,7 +57,7 @@ def main(cfg: DictConfig) -> None:
     cfg["data"] = data_cfg_copy
 
     results_dir_root = cfg.exp.runner.results_dir_root
-    results_dir = os.path.join(results_dir_root, data_cfg_copy.split_type, f"popt_{subject}_{brain_run}_{eval_name}")
+    results_dir = os.path.join(results_dir_root, data_cfg_copy.split_type, f"popt_{subject}_{brain_run}_{eval_name}_frozen_{cfg.model.frozen_upstream}")
     cfg.exp.runner.results_dir=results_dir
 
     cfg['model']['output_dim'] = 1
