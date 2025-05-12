@@ -60,6 +60,13 @@ def main(cfg: DictConfig) -> None:
     results_dir = os.path.join(results_dir_root, data_cfg_copy.split_type, f"popt_{subject}_{brain_run}_{eval_name}_frozen_{cfg.model.frozen_upstream}")
     cfg.exp.runner.results_dir=results_dir
 
+    # Check if results already exist
+    results_file = os.path.join(results_dir, "results.json")
+    if os.path.exists(results_file):
+        log.info(f"Results already exist at {results_file}. Skipping the training.")
+        return
+    
+
     cfg['model']['output_dim'] = 1
     cross_val(cfg)
 
