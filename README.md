@@ -92,20 +92,30 @@ WEIGHTS=randomized_replacement_no_gaussian_blur; python3 run_cross_val.py \
 +data_prep=pretrain_multi_subj_multi_chan_template \
 ++data_prep.electrodes=/storage/czw/btbench/electrode_selections/clean_laplacian.json \
 ++data.raw_brain_data_dir=/storage/czw/braintreebank_data/ 
-++exp.runner.results_dir_root=/storage/czw/btbench/outputs/btbench_popt \
-++data.eval_name="frame_brightness" ++data.subject=1 ++data.brain_run=1 ++data.split_type="SS_DM"
+++exp.runner.results_dir_root=/storage/czw/btbench/outputs/btbench_popt_lite \
+++data.eval_name="frame_brightness" ++data.subject=1 ++data.brain_run=1 ++data.split_type="SS_DM" 
 ```
 Important arguments:
-- `model.upstream_path` --- the path to the pretrained PopulationTransformer
+- `model.upstream_path` --- the path to the pretrained PopulationTransformer. Make sure to change the path to somewhere in your directory, i.e., not in `czw`
 - `data.btbench_cache_path` --- the path to the cached BrainBERT embeddings for the BTBench tasks. This should match the output path from the first command.
+- `data_prep.electrodes` --- this should be included in the repo. Just change the `czw` to your `<username>`
+- `data_prep.brain_data_dir` --- this is the path to the `braintreebank_data`. Just change the `czw` to your `<username>`
+- `data_prep.results_dir_root` --- output directory
+- `model.frozen_upstream` --- whether to freeze the upstream model or not. If you change this you should also adjust `results_dir_root`.
 
-But usually, I'm running this scripts
+But usually, I'm running this script, which goes through all subject-trial pairs:
 ```
 run_scripts/run_popt_ss_sm.sh 0 11 SS_SM
 ```
 - first argument is lower bound on subject-trial pair (12 total)
 - second argument is upper bound
 - third argument is split type (SS_DM or SS_SM)
+
+### Instructions for Andrii
+1. Copy over `baffin:/storage/czw/btbench/saved_examples/btbench_popt_embeds_lite/` to openmind. This means that you can skip the "Write the BTBench tasks" section above. You can use scp or rsync to do this.
+2. To run "Write the BTBench tasks" first copy the pretrained PopT weights from `victoria:/storage/czw/victoria/MultiBrainBERT/outputs/randomized_replacement_no_gaussian_blur.pth`
+3. Pay attention to the `results_dir_root` argument
+4. For `braintreebank_data`, I put all my `h5` files under `all_subject_data` (see my baffin setup). You may have to do that too.
 
 ## Citation
 

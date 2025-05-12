@@ -1,3 +1,5 @@
+import pandas as pd
+from btbench_config import DS_DM_TRAIN_SUBJECT_ID
 import os
 import json
 import logging
@@ -20,7 +22,7 @@ class BTBenchPopTTask(BaseTask):
     def __init__(self, cfg):
         super(BTBenchPopTTask, self).__init__(cfg)
 
-    def load_datasets(self, data_cfg, preprocessor_cfg):
+    def load_datasets(self, data_cfg, preprocessor_cfg, data_prep_cfg):
         import btbench_config
         from braintreebank_subject import BrainTreebankSubject
 
@@ -71,7 +73,38 @@ class BTBenchPopTTask(BaseTask):
                         output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset,
                         lite=True)
         elif data_cfg.split_type=="SS_DM":
-            bt_train_datasets, bt_test_datasets = btbench_train_test_splits.generate_splits_SS_DM(subject, trial_id, eval_name, dtype=torch.float32, #TODO take folds as argument
+            bt_train_datasets, bt_test_datasets = btbench_train_test_splits.generate_splits_SS_DM(subject, trial_id, eval_name, dtype=torch.float32, 
+                            # Put the dataset parameters here
+                        output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset,
+                        lite=True)
+            bt_train_datasets = [bt_train_datasets]
+            bt_test_datasets = [bt_test_datasets]
+        elif data_cfg.split_type=="DS_DM":
+            train_subject_id = DS_DM_TRAIN_SUBJECT_ID
+            train_subject = BrainTreebankSubject(train_subject_id, allow_corrupted=False, cache=True, dtype=torch.float32)
+
+            with open(data_prep_cfg.electrodes, "r") as f:
+                all_electrodes = json.load(f)
+
+            train_selected = all_electrodes[f"sub_{train_subject_id}"]
+
+            dataset_dir = data_cfg.raw_brain_data_dir
+            regions_file = os.path.join(dataset_dir, f'localization/sub_{train_subject_id}/depth-wm.csv')
+            localization_df = pd.read_csv(regions_file)
+            localization_df.Electrode = [x.replace('*','').replace('#','') for x in localization_df.Electrode]
+
+            labels = list(localization_df.Electrode)
+            for e in train_selected:
+               assert e in labels
+
+            #NOTE that the braintreebank_subject is sensitive to the ordering that the electrodes are passed in
+            train_selected = [e for i,e in enumerate(labels) if e in train_selected] 
+
+            train_subject.set_electrode_subset(train_selected) 
+
+            all_subjects = {subject_id: subject,
+                            train_subject_id: train_subject}
+            bt_train_datasets, bt_test_datasets = btbench_train_test_splits.generate_splits_DS_DM(all_subjects, subject_id, trial_id, eval_name, dtype=torch.float32,
                             # Put the dataset parameters here
                         output_indices=output_indices, start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset,
                         lite=True)
@@ -81,9 +114,14 @@ class BTBenchPopTTask(BaseTask):
         from datasets.btbench_decode import BTBenchDecodingDataset
 
         train_datasets, val_datasets = [], []
+        train_data_cfg = data_cfg.copy()
+
+        if data_cfg.split_type=="DS_DM":
+            train_data_cfg.electrodes = train_selected
+            
         for bt_train_dataset in bt_train_datasets:
-            train_idxs, val_idxs, test_idxs = split_dataset_idxs(bt_train_dataset, data_cfg)
-            train_dataset = BTBenchDecodingDataset(data_cfg, bt_train_dataset, preprocessor_cfg=preprocessor_cfg)
+            train_idxs, val_idxs, test_idxs = split_dataset_idxs(bt_train_dataset, train_data_cfg)
+            train_dataset = BTBenchDecodingDataset(train_data_cfg, bt_train_dataset, preprocessor_cfg=preprocessor_cfg)
             train_datasets.append(Subset(train_dataset, train_idxs))
             val_datasets.append(Subset(train_dataset, val_idxs))
 

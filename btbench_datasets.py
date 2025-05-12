@@ -141,10 +141,10 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
             self.n_classes = len(cardinal_directions)
         elif eval_name == "face_num":
             self.n_samples = len(self.all_words_df)
+            self.n_classes = 3 if not self.lite else 2
             self.class_labels = self.all_words_df["face_num"].to_numpy().astype(int)
-            self.class_labels[self.class_labels > 1] = 2 # cap at 2
+            self.class_labels[self.class_labels > self.n_classes-1] = self.n_classes-1 # cap at 2
             rebalance_classes = True
-            self.n_classes = 3
         elif eval_name == "word_index":
             self.n_samples = len(self.all_words_df)
             self.n_classes = 4 if not self.lite else 2

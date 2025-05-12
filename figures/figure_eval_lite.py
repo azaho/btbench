@@ -10,6 +10,14 @@ fm.fontManager.addfont(font_path)
 plt.rcParams['font.family'] = 'Arial'
 plt.rcParams.update({'font.size': 12})
 
+import argparse
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Create performance figure for BTBench evaluation')
+parser.add_argument('--split_type', type=str, default='SS_SM', 
+                    help='Split type to use (SS_SM or SS_DM)')
+args = parser.parse_args()
+split_type = args.split_type
+
 BTBENCH_LITE_SUBJECT_TRIALS = [
     (1, 1), (1, 2), 
     (2, 0), (2, 4),
@@ -20,23 +28,6 @@ BTBENCH_LITE_SUBJECT_TRIALS = [
 ]
 
 def create_performance_figure():
-    # Define tasks and their categories
-    tasks = {
-        'Language': [
-            'speech', 'onset', 'gpt2_surprisal', 'word_length',
-            'word_gap', 'word_index', 'word_head_pos', 'word_part_speech'
-        ],
-        'Auditory': [
-            'volume', 'pitch', 'delta_volume', 'delta_pitch'
-        ],
-        'Visual': [
-            'frame_brightness', 'global_flow', 'local_flow', 
-            'global_flow_angle', 'local_flow_angle', 'face_num'
-        ],
-        'Multimodal': [
-            'speaker'
-        ]
-    }
     task_list = {
         'onset': 0.5, 
         'speech': 0.5,
@@ -88,13 +79,10 @@ def create_performance_figure():
     nperseg = 256
     ms_per_seg = int(nperseg / 2048 * 1000)
 
-    # Define models
-    models = ['Linear (raw voltage)', f'Linear (FFT - real+imag, {ms_per_seg}ms)', f'Linear (FFT - abs+angle, {ms_per_seg}ms)', f'Linear (spectrogram, {ms_per_seg}ms)', 
-              'BrainBERT (granularity=1)', 'BrainBERT (granularity=4)', 'BrainBERT (res=16)', 'BrainBERT (res=-1)']
     
-    models = ['Linear (raw voltage)', 'Linear (-line noise)', 'Linear (<200Hz)', 'Linear (<200Hz, -line noise)',
-              f'Linear (FFT - abs, {ms_per_seg}ms)', f'Linear (FFT - real+imag, {ms_per_seg}ms)',
-              'BrainBERT (res=4)', 'BrainBERT (res=-1)']
+    models = ['Linear (raw voltage)', 'Linear (-line noise)',
+               f'Linear (FFT - real+imag, {ms_per_seg}ms)', f'Linear (FFT - abs, {ms_per_seg}ms)',
+              'BrainBERT']
     # Define models
     # models = [f'Linear (spectrogram, {ms_per_seg}ms)', 
     #           'BrainBERT (granularity=1)', 'BrainBERT (granularity=4)', 'BrainBERT (granularity=16)', 'BrainBERT (granularity=-1)']
@@ -115,20 +103,20 @@ def create_performance_figure():
             for subject_id, trial_id in subject_trials:
                 nperseg_suffix = f'_nperseg{nperseg}' if nperseg != 256 else ''
                 if model.startswith('Linear (raw voltage)'):
-                    filename = f'eval_results_lite_SS_SM/linear_voltage/population_btbank{subject_id}_{trial_id}_{task}.json'
+                    filename = f'/om2/user/zaho/btbench/eval_results_lite_{split_type}/linear_voltage/population_btbank{subject_id}_{trial_id}_{task}.json'
                 elif model.startswith('Linear (-line noise)'):
-                    filename = f'eval_results_lite_SS_SM/linear_remove_line_noise/population_btbank{subject_id}_{trial_id}_{task}.json'
+                    filename = f'/om2/user/zaho/btbench/eval_results_lite_{split_type}/linear_remove_line_noise/population_btbank{subject_id}_{trial_id}_{task}.json'
                 elif model.startswith('Linear (<200Hz)'):
-                    filename = f'eval_results_lite_SS_SM/linear_downsample_200/population_btbank{subject_id}_{trial_id}_{task}.json'
+                    filename = f'/om2/user/zaho/btbench/eval_results_lite_{split_type}/linear_downsample_200/population_btbank{subject_id}_{trial_id}_{task}.json'
                 elif model.startswith('Linear (<200Hz, -line noise)'):
-                    filename = f'eval_results_lite_SS_SM/linear_downsample_200-remove_line_noise/population_btbank{subject_id}_{trial_id}_{task}.json'
+                    filename = f'/om2/user/zaho/btbench/eval_results_lite_{split_type}/linear_downsample_200-remove_line_noise/population_btbank{subject_id}_{trial_id}_{task}.json'
                 elif model.startswith('Linear (FFT - abs'):
-                    filename = f'eval_results_lite_SS_SM/linear_fft_abs{nperseg_suffix}/population_btbank{subject_id}_{trial_id}_{task}.json'
+                    filename = f'/om2/user/zaho/btbench/eval_results_lite_{split_type}/linear_fft_abs{nperseg_suffix}/population_btbank{subject_id}_{trial_id}_{task}.json'
                 elif model.startswith('Linear (FFT - real+imag'):
-                    filename = f'eval_results_lite_SS_SM/linear_fft_realimag{nperseg_suffix}/population_btbank{subject_id}_{trial_id}_{task}.json'
-                elif model.startswith('BrainBERT (res='):
-                    granularity = model.split('=')[-1][:-1].strip()
-                    filename = f'/om2/user/zaho/BrainBERT/eval_results_lite_SS_SM/brainbert_frozen_mean_granularity_{granularity}/population_btbank{subject_id}_{trial_id}_{task}.json'
+                    filename = f'/om2/user/zaho/btbench/eval_results_lite_{split_type}/linear_fft_realimag{nperseg_suffix}/population_btbank{subject_id}_{trial_id}_{task}.json'
+                elif model.startswith('BrainBERT'):
+                    granularity = -1
+                    filename = f'/om2/user/zaho/BrainBERT/eval_results_lite_{split_type}/brainbert_frozen_mean_granularity_{granularity}/population_btbank{subject_id}_{trial_id}_{task}.json'
                 if not os.path.exists(filename):
                     print(f"Warning: File {filename} not found, skipping...")
                     continue
@@ -258,7 +246,8 @@ def create_performance_figure():
     plt.tight_layout(rect=[0, 0.2 if len(task_list)<10 or len(models)>3 else 0.1, 1, 1], w_pad=0.4)
     
     # Save figure
-    plt.savefig(f'figures/lite_ss_sm{nperseg_suffix}.pdf', dpi=300, bbox_inches='tight')
+    plt.savefig(f'figures/eval_lite_{split_type}{nperseg_suffix}.pdf', dpi=300, bbox_inches='tight')
+    print(f'Saved figure to figures/eval_lite_{split_type}{nperseg_suffix}.pdf')
     plt.close()
 
 if __name__ == "__main__":

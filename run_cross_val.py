@@ -17,7 +17,7 @@ def cross_val(cfg):
     log.info(OmegaConf.to_yaml(cfg, resolve=True))
     log.info(f'Working directory {os.getcwd()}')
     task = tasks.setup_task(cfg.task)
-    task.load_datasets(cfg.data, cfg.preprocessor)
+    task.load_datasets(cfg.data, cfg.preprocessor, cfg.data_prep)
     criterion = task.build_criterion(cfg.criterion)
     model_cfg = cfg.model
     runner = Runner(cfg.exp.runner, task, criterion, model_cfg)
@@ -57,8 +57,15 @@ def main(cfg: DictConfig) -> None:
     cfg["data"] = data_cfg_copy
 
     results_dir_root = cfg.exp.runner.results_dir_root
-    results_dir = os.path.join(results_dir_root, data_cfg_copy.split_type, f"popt_{subject}_{brain_run}_{eval_name}")
+    results_dir = os.path.join(results_dir_root, data_cfg_copy.split_type, f"popt_{subject}_{brain_run}_{eval_name}_frozen_{cfg.model.frozen_upstream}")
     cfg.exp.runner.results_dir=results_dir
+
+    # Check if results already exist
+    results_file = os.path.join(results_dir, "results.json")
+    if os.path.exists(results_file):
+        log.info(f"Results already exist at {results_file}. Skipping the training.")
+        return
+    
 
     cfg['model']['output_dim'] = 1
     cross_val(cfg)
