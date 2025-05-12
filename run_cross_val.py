@@ -17,7 +17,7 @@ def cross_val(cfg):
     log.info(OmegaConf.to_yaml(cfg, resolve=True))
     log.info(f'Working directory {os.getcwd()}')
     task = tasks.setup_task(cfg.task)
-    task.load_datasets(cfg.data, cfg.preprocessor)
+    task.load_datasets(cfg.data, cfg.preprocessor, cfg.data_prep)
     criterion = task.build_criterion(cfg.criterion)
     model_cfg = cfg.model
     runner = Runner(cfg.exp.runner, task, criterion, model_cfg)
