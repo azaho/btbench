@@ -1,0 +1,8 @@
+name: btbench_decode_brant
+data_path: ???
+val_split: 0.1
+subject: ???
+electrodes: ???
+brain_runs: ???
+eval_name: ???
+compute_power: true

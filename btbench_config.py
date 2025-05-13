@@ -1,13 +1,13 @@
 # Feel free to change this setting to your own directory.
-ROOT_DIR = "/storage/czw/braintreebank_data" # Root directory for the braintreebank data
-#ROOT_DIR = "/storage/czw/braintreebank_data_popt_preprocessed" # Root directory for the braintreebank data
+ROOT_DIR = "/home/geeling/Projects/ieeg_project/data/braintreebank_data" # Root directory for the braintreebank data
 
+REPO_DIR = "/home/geeling/Projects/ieeg_project/btbench"
 # NOTE: Settings in this file below this line have global effect on the code. All parts of the pipeline have to run with the same settings.
 # If you want to change a setting, you have to rerun all parts of the pipeline with the new setting. Otherwise, things will break.
 #SAVE_SUBJECT_TRIAL_DF_DIR = "btbench_subject_metadata"
-SAVE_SUBJECT_TRIAL_DF_DIR = "/storage/czw/btbench/btbench_subject_metadata"
+SAVE_SUBJECT_TRIAL_DF_DIR = f"{REPO_DIR}/btbench_subject_metadata"
 #SAVE_SPEECH_SELECTIVITY_DATA_DIR = "btbench_speech_selectivity_data"
-SAVE_SPEECH_SELECTIVITY_DATA_DIR = "/storage/czw/btbench/btbench_speech_selectivity_data"
+SAVE_SPEECH_SELECTIVITY_DATA_DIR = f"{REPO_DIR}/btbench_speech_selectivity_data"
 PITCH_VOLUME_FEATURES_DIR = "btbench_pitch_volume_features" # This comes together with the btbench package
 
 SAMPLING_RATE = 2048 # Sampling rate

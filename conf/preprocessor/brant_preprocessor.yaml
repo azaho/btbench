@@ -1,0 +1,4 @@
+name: brant_preprocessor
+sample_rate: 250
+pad_zeros: true
+max_len: 1500

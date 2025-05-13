@@ -80,10 +80,14 @@ def write_trial_data(subject, subject_name, brain_run, extracter, data_cfg_templ
     # if False, the dataset will output the neural data directly
     output_indices = False
 
-    #start_neural_data_before_word_onset = btbench_config.SAMPLING_RATE*2.5 # the number of samples to start the neural data before each word onset
-    start_neural_data_before_word_onset = int(btbench_config.SAMPLING_RATE*0.0) # the number of samples to start the neural data before each word onset
+    # start_neural_data_before_word_onset = btbench_config.SAMPLING_RATE*2.5 # the number of samples to start the neural data before each word onset
+    # start_neural_data_before_word_onset = int(btbench_config.SAMPLING_RATE*0.0) # the number of samples to start the neural data before each word onset
+    start_neural_data_before_word_onset = int(btbench_config.SAMPLING_RATE*(-cfg.data.delta)) # the number of samples to start the neural data before each word onset
+
     #end_neural_data_after_word_onset = btbench_config.SAMPLING_RATE * 2.5 # the number of samples to end the neural data after each word onset -- here we use 2.5 second
-    end_neural_data_after_word_onset = int(btbench_config.SAMPLING_RATE * 1.0) # the number of samples to end the neural data after each word onset -- here we use 1.0 second
+    # end_neural_data_after_word_onset = int(btbench_config.SAMPLING_RATE * 1.0) # the number of samples to end the neural data after each word onset -- here we use 1.0 second
+    end_neural_data_after_word_onset = int(btbench_config.SAMPLING_RATE *(cfg.data.delta + cfg.data.duration)) # the number of samples to end the neural data after each word onset
+
 
     dataset = BrainTreebankSubjectTrialBenchmarkDataset(subject, trial_id, dtype=torch.float32, eval_name=eval_name, output_indices=output_indices, 
                                                         start_neural_data_before_word_onset=start_neural_data_before_word_onset, end_neural_data_after_word_onset=end_neural_data_after_word_onset, lite=True)

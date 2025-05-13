@@ -1,0 +1,21 @@
+runner:
+    lr: 1e-4
+    ft_lr: 1e-7
+    optim: Adam_brant_finetune
+    train_batch_size: 4
+    valid_batch_size: 4
+    shuffle: true
+    multi_gpu: false
+    device: cuda
+    total_steps: 10000
+    num_workers: 4
+    log_step: 500
+    checkpoint_step: 500
+    grad_clip: 1.0
+    output_tb: true
+    log_test: true
+    scheduler:
+        name: ramp_up
+        total_steps: ${exp.runner.total_steps}
+        warmup: 0.025
+        gamma: 0.1

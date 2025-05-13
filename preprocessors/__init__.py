@@ -10,6 +10,7 @@ from .spec_pooled import SpecPooled
 from .chronos import Chronos
 from .chronos_scaling_preprocessor import ChronosScalingPreprocessor
 from .identity_preprocessor import IdentityPreprocessor
+from .brant_preprocessor import BrantPreprocessor
 
 __all__ = ["STFTPreprocessor",
            "MoreletPreprocessor",
@@ -21,8 +22,9 @@ __all__ = ["STFTPreprocessor",
            "MultiElecSpecPretrained",
            "SpecPooled",
            "Chronos",
-           "ChronosScalingPreprocessor"
-           "IdentityPreprocessor"
+           "ChronosScalingPreprocessor",
+           "IdentityPreprocessor",
+           "BrantPreprocessor"
           ]
 
 def build_preprocessor(preprocessor_cfg):
@@ -46,6 +48,8 @@ def build_preprocessor(preprocessor_cfg):
         extracter = ChronosScalingPreprocessor(preprocessor_cfg)
     elif preprocessor_cfg.name == "identity_preprocessor":
         extracter = IdentityPreprocessor(preprocessor_cfg)
+    elif preprocessor_cfg.name == "brant_preprocessor":
+        extracter = BrantPreprocessor(preprocessor_cfg)
     else:
         raise ValueError("Specify preprocessor")
     return extracter

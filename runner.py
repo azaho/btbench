@@ -42,14 +42,14 @@ class Runner():
         self.optim.load_state_dict(init_state["optim"])
         self.scheduler.load_state_dict(init_state["optim"])
 
-    def _init_optim(self, args, model):
-        if args.optim == "SGD":
-            optim = torch.optim.SGD(model.parameters(), lr=args.lr, momentum = 0.9)
-        elif args.optim == 'Adam':
-            optim = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=0.01)
-        elif args.optim == 'AdamW':
-            optim = torch.optim.AdamW(model.parameters(), lr=args.lr)
-        elif args.optim == 'AdamW_finetune':
+    def _init_optim(self, cfg, model):
+        if cfg.optim == "SGD":
+            optim = torch.optim.SGD(model.parameters(), lr=cfg.lr, momentum = 0.9)
+        elif cfg.optim == 'Adam':
+            optim = torch.optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=0.01)
+        elif cfg.optim == 'AdamW':
+            optim = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
+        elif cfg.optim == 'AdamW_finetune':
             upstream_params = model.upstream.parameters() if not self.cfg.multi_gpu else model.module.upstream.parameters()
             upstream_params = list(upstream_params)
             ignored_params = list(map(id, upstream_params))
@@ -59,10 +59,18 @@ class Runner():
 
             optim = torch.optim.AdamW([
                         {'params': upstream_params},
-                        {'params': linear_params, 'lr': args.lr}
-                    ], lr=args.lr*0.1)
-        elif args.optim == 'LAMB':
-            optim = torch_optim.Lamb(model.parameters(), lr=args.lr)
+                        {'params': linear_params, 'lr': cfg.lr}
+                    ], lr=cfg.lr*0.1)
+        elif cfg.optim == 'Adam_brant_finetune': 
+            optim = torch.optim.Adam(
+                [{'params': list(model.encoder_t.parameters()),   'lr': cfg.ft_lr},
+                {'params': list(model.encoder_ch.parameters()),   'lr': cfg.ft_lr},
+                {'params': list(model.final_module.parameters()),        'lr': cfg.lr}],
+                betas=(0.9, 0.999),
+                eps=1e-8,
+            )
+        elif cfg.optim == 'LAMB':
+            optim = torch_optim.Lamb(model.parameters(), lr=cfg.lr)
         else:
             print("no valid optim name")
         return optim

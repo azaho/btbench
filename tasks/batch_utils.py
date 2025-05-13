@@ -30,6 +30,20 @@ def spec_collator(batch):
              "wavs": wavs}
     return batch
 
+
+def feature_power_extracter_collator(batch):
+    specs = [b["input"] for b in batch]
+    specs = pad_sequence(specs, batch_first=True)
+    labels = [b["label"] for b in batch]
+    wavs = [b["wav"] for b in batch]
+    powers = [b["power"] for b in batch]
+    powers = pad_sequence(powers, batch_first=True)
+    
+    return {"input":specs,
+            "labels":labels,
+            "wavs": wavs,
+            "power": powers}
+
 def wav_collator(batch):
     wavs = [torch.Tensor(b["input"]).unsqueeze(0) for b in batch]
     wavs = pad_sequence(wavs, batch_first=True)

@@ -17,3 +17,5 @@ logs/
 figures/.*
 eval_results_old/*.DS_Store
 .DS_Store
+**/outputs/
+**/saved_examples/

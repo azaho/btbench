@@ -17,12 +17,16 @@ from preprocessors import build_preprocessor
 
 log = logging.getLogger(__name__)
 
-@register_dataset(name="btbench_decode")
-class BTBenchDecodingDataset(data.Dataset):
+@register_dataset(name="btbench_decode_brant")
+class BTBenchDecodingDatasetBrant(data.Dataset):
     def __init__(self, cfg, btbench_dataset, preprocessor_cfg=None):
         super().__init__()
         self.btbench_dataset = btbench_dataset
-        self.extracter = build_preprocessor(preprocessor_cfg)
+        # Preprocessor
+        self.extracter = None
+        if preprocessor_cfg.get("name", False): 
+            self.preprocessor_cfg = preprocessor_cfg
+            self.extracter = build_preprocessor(self.preprocessor_cfg)
         self.cfg = cfg
 
         btbench_cache_path = self.cfg.btbench_cache_path
@@ -96,7 +100,6 @@ class BTBenchDecodingDataset(data.Dataset):
         if self.cfg.get("region_coords", False):
             raise ValueError("Not implemented")
 
-
     def create_manifest_and_labels(self, btbench_dataset):
         btbench_cache_path = self.cfg.btbench_cache_path
         manifest, labels = [], []
@@ -150,27 +153,23 @@ class BTBenchDecodingDataset(data.Dataset):
     def __getitem__(self, idx: int):
         fpath, subject = self.manifest[idx]
         input_x = np.load(fpath)
-        input_x = self.extracter(input_x)
+        
+        power = None
+        if self.cfg.get("compute_power", False) and self.extracter is not None: 
+            input_x, power = self.extracter(input_x)
 
-        #NOTE: commenting out the below because the cache is actually already sub-sampled.
-        #input_x = torch.FloatTensor(input_x[self.absolute_id[subject],:])#sub sample the channels based on selection
+
         input_x = torch.FloatTensor(input_x)
-        embed_dim = input_x.shape[-1]
-        cls_token = torch.ones(1,embed_dim)
 
-        input_x = torch.concatenate([cls_token,input_x])
-
-        coords = self.coords_dict[subject]
-        coords = torch.LongTensor(coords)
-
-        seq_len = input_x.shape[0] - 1
-        seq_id = torch.LongTensor([0]*seq_len)
-        return {
+        #NOTE: remember not to load to cuda here
+        coords = self.all_localization_dfs[subject][["L", "I", "P"]].to_numpy()
+        data_entry = {
                 "input" : input_x,
                 "wav": np.zeros(3),#TODO get rid of this
-                "length": 1+input_x.shape[0], 
+                "length": input_x.shape[0], 
                 "coords": coords,
                 "label": self.label2idx(self.labels[idx]),
-                "seq_id": seq_id
                }
-
+        if power is not None: 
+            data_entry["power"] = power
+        return data_entry
