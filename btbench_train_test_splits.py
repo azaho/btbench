@@ -145,9 +145,9 @@ def generate_splits_SS_DM(test_subject, test_trial_id, eval_name, dtype=torch.fl
                                                              lite=lite, allow_partial_cache=allow_partial_cache)
     
     if not lite:
-        train_trial_id = BTBENCH_LONGEST_TRIALS_FOR_SUBJECT[0]
+        train_trial_id = BTBENCH_LONGEST_TRIALS_FOR_SUBJECT[test_subject.subject_id][0]
         if train_trial_id == test_trial_id:
-            train_trial_id = BTBENCH_LONGEST_TRIALS_FOR_SUBJECT[1] # If the longest trial is the test trial, use the second longest trial for training
+            train_trial_id = BTBENCH_LONGEST_TRIALS_FOR_SUBJECT[test_subject.subject_id][1] # If the longest trial is the test trial, use the second longest trial for training
     else:
         train_trial_id = [trial_id for subject_id, trial_id in BTBENCH_LITE_SUBJECT_TRIALS if subject_id == test_subject.subject_id and trial_id != test_trial_id][0] # Get the first other trial for the training set (there should only be one)
     

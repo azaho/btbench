@@ -6,6 +6,23 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 import torch, numpy as np
 import argparse, json, os, time, psutil
+import gc  # Add at top with other imports
+
+
+preprocess_options = [
+    'none', # no preprocessing, just raw voltage
+    'fft_absangle', # magnitude and phase after FFT
+    'fft_realimag', # real and imaginary parts after FFT
+    'fft_abs', # just magnitude after FFT ("spectrogram")
+
+    'remove_line_noise', # remove line noise from the raw voltage
+    'downsample_200', # downsample to 200 Hz
+    'downsample_200-remove_line_noise', # downsample to 200 Hz and remove line noise
+]
+splits_options = [
+    'SS_SM', # same subject, same trial
+    'SS_DM', # same subject, different trial
+]
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--eval_name', type=str, default='onset', help='Evaluation name(s) (e.g. onset, gpt2_surprisal). If multiple, separate with commas.')
@@ -13,8 +30,8 @@ parser.add_argument('--subject', type=int, required=True, help='Subject ID')
 parser.add_argument('--trial', type=int, required=True, help='Trial ID')
 parser.add_argument('--verbose', action='store_true', help='Whether to print progress')
 parser.add_argument('--save_dir', type=str, default='eval_results', help='Directory to save results')
-parser.add_argument('--preprocess', type=str, choices=['fft_absangle', 'fft_realimag', 'fft_abs', 'none'], default='none', help='Preprocessing to apply to neural data (fft_absangle, fft_realimag, fft_abs or none)')
-parser.add_argument('--splits_type', type=str, choices=['SS_SM', 'SS_DM'], default='SS_SM', help='Type of splits to use (SS_SM or DM_SM)')
+parser.add_argument('--preprocess', type=str, choices=preprocess_options, default='none', help=f'Preprocessing to apply to neural data ({", ".join(preprocess_options)})')
+parser.add_argument('--splits_type', type=str, choices=splits_options, default='SS_SM', help=f'Type of splits to use ({", ".join(splits_options)})')
 parser.add_argument('--seed', type=int, default=42, help='Random seed')
 parser.add_argument('--nperseg', type=int, default=256, help='Length of each segment for FFT calculation')
 parser.add_argument('--only_1second', action='store_true', help='Whether to only evaluate on 1 second after word onset')
@@ -38,19 +55,23 @@ np.random.seed(seed)
 torch.manual_seed(seed)
 
 bins_start_before_word_onset_seconds = 0.5 if not only_1second else 0
-bins_end_after_word_onset_seconds = 2.5 if not only_1second else 1
-bin_size_seconds = 0.125
+bins_end_after_word_onset_seconds = 1.5 if not only_1second else 1
+bin_size_seconds = 0.25
+bin_step_size_seconds = 0.125
 
+bin_starts = []
+bin_ends = []
 if not only_1second:
-    # Loop over all time bins
-    bin_starts = np.arange(-bins_start_before_word_onset_seconds, bins_end_after_word_onset_seconds, bin_size_seconds)
-    bin_ends = bin_starts + bin_size_seconds
-    # Add a time bin for the whole window and for 1 second after the word onset
-    bin_starts = [0, -bins_start_before_word_onset_seconds][::-1] + list(bin_starts)
-    bin_ends = [1, bins_end_after_word_onset_seconds][::-1] + list(bin_ends)
-else:
-    bin_starts = [0]
-    bin_ends = [1]
+    for bin_start in np.arange(-bins_start_before_word_onset_seconds, bins_end_after_word_onset_seconds-bin_size_seconds, bin_step_size_seconds):
+        bin_end = bin_start + bin_size_seconds
+        if bin_end > bins_end_after_word_onset_seconds: break
+
+        bin_starts.append(bin_start)
+        bin_ends.append(bin_end)
+    bin_starts += [-bins_start_before_word_onset_seconds]
+    bin_ends += [bins_end_after_word_onset_seconds]
+bin_starts += [0]
+bin_ends += [1]
 
 
 max_log_priority = -1 if not verbose else 4
@@ -62,6 +83,8 @@ def log(message, priority=0, indent=0):
     process = psutil.Process()
     ram_usage = process.memory_info().rss / 1024**3
     print(f"[{current_time} gpu {gpu_memory_reserved:04.1f}G ram {ram_usage:05.1f}G] {' '*4*indent}{message}")
+
+
 
 
 from scipy import signal
@@ -104,9 +127,60 @@ def compute_stft(data, fs=2048, preprocess="fft_abs"):
         real = np.real(Zxx)
         imag = np.imag(Zxx)
         return np.stack([real, imag], axis=-2)
-    else:
+    else:   
         magnitude = np.abs(Zxx)
         return magnitude
+def downsample(data, fs=2048, downsample_rate=200):
+    return signal.resample_poly(data, up=fs, down=downsample_rate, axis=-1)
+def remove_line_noise(data, fs=2048, line_freq=60):
+    """Remove line noise (60 Hz and harmonics) from neural data.
+    
+    Args:
+        data (numpy.ndarray): Input voltage data of shape (n_channels, n_samples) or (batch_size, n_channels, n_samples)
+        fs (int): Sampling frequency in Hz
+        line_freq (int): Fundamental line frequency in Hz (typically 60 Hz in the US)
+        
+    Returns:
+        numpy.ndarray: Filtered data with the same shape as input
+    """
+    # Make a copy of the data to avoid modifying the original
+    filtered_data = data.copy()
+    
+    # Define the width of the notch filter (5 Hz on each side)
+    bandwidth = 5.0
+    
+    # Calculate the quality factor Q
+    Q = line_freq / bandwidth
+    
+    # Apply notch filters for the fundamental frequency and harmonics
+    # We'll filter up to the 5th harmonic (60, 120, 180, 240, 300 Hz)
+    for harmonic in range(1, 6):
+        harmonic_freq = line_freq * harmonic
+        
+        # Skip if the harmonic frequency is above the Nyquist frequency
+        if harmonic_freq > fs/2:
+            break
+            
+        # Create and apply a notch filter
+        b, a = signal.iirnotch(harmonic_freq, Q, fs)
+        
+        # Apply the filter along the time dimension
+        if filtered_data.ndim == 2:  # (n_channels, n_samples)
+            filtered_data = signal.filtfilt(b, a, filtered_data, axis=1)
+        elif filtered_data.ndim == 3:  # (batch_size, n_channels, n_samples)
+            for i in range(filtered_data.shape[0]):
+                filtered_data[i] = signal.filtfilt(b, a, filtered_data[i], axis=1)
+    
+    return filtered_data
+def preprocess_data(data):
+    for preprocess_option in preprocess.split('-'):
+        if preprocess_option in ['fft_absangle', 'fft_realimag', 'fft_abs']:
+            data = compute_stft(data, preprocess=preprocess_option)
+        elif preprocess_option == 'remove_line_noise':
+            data = remove_line_noise(data)
+        elif preprocess_option == 'downsample_200':
+            data = downsample(data, downsample_rate=200)
+    return data
 
 
 # use cache=True to load this trial's neural data into RAM, if you have enough memory!
@@ -115,6 +189,14 @@ subject = BrainTreebankSubject(subject_id, allow_corrupted=False, cache=True, dt
 all_electrode_labels = subject.electrode_labels
 
 for eval_name in eval_names:
+    file_save_dir = f"{save_dir}/linear_{preprocess if preprocess != 'none' else 'voltage'}{'_nperseg' + str(nperseg) if nperseg != 256 else ''}"
+    os.makedirs(file_save_dir, exist_ok=True) # Create save directory if it doesn't exist
+    file_save_path = f"{file_save_dir}/population_{subject.subject_identifier}_{trial_id}_{eval_name}.json"
+    if os.path.exists(file_save_path):
+        log(f"Skipping {file_save_path} because it already exists", priority=0)
+        continue
+
+
     results_population = {
         "time_bins": [],
     }
@@ -158,18 +240,14 @@ for eval_name in eval_names:
             test_dataset = test_datasets[fold_idx]
 
             log(f"Fold {fold_idx+1}, Bin {bin_start}-{bin_end}")
-            log("Preparing data...", priority=2, indent=1)
+            log("Preparing and preprocessing data...", priority=2, indent=1)
 
             # Convert PyTorch dataset to numpy arrays for scikit-learn
-            X_train = np.array([item[0][:, data_idx_from:data_idx_to] for item in train_dataset])
+            X_train = np.array([preprocess_data(item[0][:, data_idx_from:data_idx_to].float().numpy()) for item in train_dataset])
             y_train = np.array([item[1] for item in train_dataset])
-            X_test = np.array([item[0][:, data_idx_from:data_idx_to] for item in test_dataset])
+            X_test = np.array([preprocess_data(item[0][:, data_idx_from:data_idx_to].float().numpy()) for item in test_dataset])
             y_test = np.array([item[1] for item in test_dataset])
-
-            if preprocess in ['fft_absangle', 'fft_realimag', 'fft_abs']:
-                log(f"Calculating {preprocess}...", priority=2, indent=1)
-                X_train = compute_stft(X_train, preprocess=preprocess)
-                X_test = compute_stft(X_test, preprocess=preprocess)
+            gc.collect()  # Collect after creating large arrays
 
             # Flatten the data after preprocessing in-place
             X_train = X_train.reshape(X_train.shape[0], -1)
@@ -181,6 +259,7 @@ for eval_name in eval_names:
             scaler = StandardScaler(copy=False)
             X_train = scaler.fit_transform(X_train)
             X_test = scaler.transform(X_test)
+            gc.collect()  # Collect after standardization
 
             log(f"Training model...", priority=2, indent=1)
 
@@ -195,6 +274,7 @@ for eval_name in eval_names:
             # Get predictions - for multiclass classification
             train_probs = clf.predict_proba(X_train)
             test_probs = clf.predict_proba(X_test)
+            gc.collect()  # Collect after predictions
 
             # Filter test samples to only include classes that were in training
             valid_class_mask = np.isin(y_test, clf.classes_)
@@ -228,6 +308,13 @@ for eval_name in eval_names:
                 "test_roc_auc": float(test_roc)
             }
             bin_results["folds"].append(fold_result)
+            
+            # Clean up variables no longer needed
+            del X_train, y_train, X_test, y_test, train_probs, test_probs
+            del y_test_filtered, test_probs_filtered, y_test_onehot, y_train_onehot
+            del clf, scaler
+            gc.collect()  # Collect after cleanup
+
             if verbose: 
                 log(f"Population, Fold {fold_idx+1}, Bin {bin_start}-{bin_end}: Train accuracy: {train_accuracy:.3f}, Test accuracy: {test_accuracy:.3f}, Train ROC AUC: {train_roc:.3f}, Test ROC AUC: {test_roc:.3f}", priority=0, indent=0)
 
@@ -257,11 +344,11 @@ for eval_name in eval_names:
         "seed": seed
     }
 
-    file_save_dir = f"{save_dir}/linear_{preprocess if preprocess != 'none' else 'voltage'}{'_nperseg' + str(nperseg) if nperseg != 256 else ''}"
-    os.makedirs(file_save_dir, exist_ok=True) # Create save directory if it doesn't exist
-    file_save_path = f"{file_save_dir}/population_{subject.subject_identifier}_{trial_id}_{eval_name}.json"
-
     with open(file_save_path, "w") as f:
         json.dump(results, f, indent=4)
     if verbose:
         log(f"Results saved to {file_save_path}", priority=0)
+
+    # Clean up at end of each eval_name loop
+    del train_datasets, test_datasets
+    gc.collect()
