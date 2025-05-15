@@ -1,3 +1,4 @@
+
 import numpy as np
 import torch
 import h5py
@@ -16,12 +17,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.preprocessing import StandardScaler
 
-# --- Configuration ---
 PREPROCESSED_DIR = "preprocessed_regions_desikan_killiany"
-METADATA_DIR = "subject_metadata"
 FIXED_TRAIN_SUBJECT = 2
 FIXED_TRAIN_TRIAL = 4
-# --------------------
 
 def extract_features_and_labels(subject_id, trial_id, eval_name, region_h5_path, lite=True):
     """

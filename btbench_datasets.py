@@ -103,13 +103,44 @@ class BrainTreebankSubjectTrialBenchmarkDataset(Dataset):
             self.all_words_df['word_gap'] = word_gaps
         
         if eval_name in single_float_variables:
-            # Loading all of the labels for the selected single float variable
             if self.eval_name_remapped in new_pitch_variables:
                 pitch_volume_features_path = os.path.join(PITCH_VOLUME_FEATURES_DIR, f"{self.movie_name}_pitch_volume_features.json")
-                with open(pitch_volume_features_path, 'r') as f: pitch_volume_features = json.load(f)
+                with open(pitch_volume_features_path, 'r') as f:
+                    raw_pitch_volume_features = json.load(f)
+
+                TARGET_DP_FOR_KEYS = 8  # Standard number of decimal places
+                
+                normalized_pvf = {}
+                for k_str, v_val in raw_pitch_volume_features.items():
+                    try:
+                        k_float = float(k_str)
+                        normalized_key = f"{k_float:.{TARGET_DP_FOR_KEYS}f}"
+                        
+                        if normalized_key in normalized_pvf:
+                            pass
+                        else:
+                            normalized_pvf[normalized_key] = v_val
+                    except ValueError:
+                        # If a key is not a float string, keep it as is.
+                        normalized_pvf[k_str] = v_val
+                pitch_volume_features = normalized_pvf 
 
                 start_times = self.all_words_df['start'].to_list()
-                all_labels = np.array([pitch_volume_features[str(start_time)][self.eval_name_remapped] for start_time in start_times])
+                
+                all_labels = []
+                for start_time_val in start_times:
+                    lookup_key = f"{start_time_val:.{TARGET_DP_FOR_KEYS}f}"
+                    try:
+                        label = pitch_volume_features[lookup_key][self.eval_name_remapped]
+                        all_labels.append(label)
+                    except KeyError:
+          
+                        print(f"  Persistent KeyError: Could not find normalized key '{lookup_key}' (from start_time {start_time_val}) "
+                              f"for task '{self.eval_name_remapped}' in movie '{self.movie_name}'. "
+                              f"Skipping this start_time. Check data integrity if this happens often.")
+                        raise 
+
+                all_labels = np.array(all_labels)
             else:
                 all_labels = self.all_words_df[self.eval_name_remapped].to_numpy()
 
