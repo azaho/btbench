@@ -1,5 +1,7 @@
 # Neuroprobe
 
+![Neuroprobe Logo](neuroprobe_logo.jpg)
+
 Neuroprobe is a benchmark that reveals the relationship between tasks in the brain. It consists of 19 standardized decoding tasks derived from intracranial brain responses to naturalistic stimuli. The benchmark is based on the BrainTreebank dataset, which contains stereoelectroencephalography (SEEG) recordings from 10 patients watching Hollywood movies.
 
 ## Overview
