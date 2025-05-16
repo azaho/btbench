@@ -1,10 +1,10 @@
-# BrainTreeBenchmark (BT-bench)
+# Neuroprobe
 
-BT-bench is a suite of 19 standardized decoding tasks for evaluating foundation models on intracranial brain responses to naturalistic stimuli. The benchmark is based on the BrainTreebank dataset, which contains stereoelectroencephalography (SEEG) recordings from 10 patients watching Hollywood movies.
+Neuroprobe is a benchmark that reveals the relationship between tasks in the brain. It consists of 19 standardized decoding tasks derived from intracranial brain responses to naturalistic stimuli. The benchmark is based on the BrainTreebank dataset, which contains stereoelectroencephalography (SEEG) recordings from 10 patients watching Hollywood movies.
 
 ## Overview
 
-BT-bench enables systematic evaluation of computational models on multimodal neural decoding tasks across:
+Neuroprobe enables systematic evaluation of computational models on multimodal neural decoding tasks across:
 - Visual features (brightness, motion flow, faces)
 - Auditory features (volume, pitch) 
 - Language features (speech detection, word properties)
@@ -15,7 +15,6 @@ The benchmark includes defined train/test splits for assessing generalization:
 |-----------------|-------------|
 | SS-SM | Same Subject - Same Movie |
 | SS-DM | Same Subject - Different Movie | 
-| DS-SM | Different Subject - Same Movie |
 | DS-DM | Different Subject - Different Movie |
 
 ## Getting Started
@@ -57,5 +56,5 @@ This command will create a JSON file in the `eval_results` directory with the re
 
 ## Citation
 
-If you use BT-bench in your work, please cite the following paper:
+If you use Neuroprobe in your work, please cite the following paper:
 TBD
