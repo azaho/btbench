@@ -36,6 +36,10 @@ parser.add_argument('--seed', type=int, default=42, help='Random seed')
 parser.add_argument('--nperseg', type=int, default=256, help='Length of each segment for FFT calculation')
 parser.add_argument('--only_1second', action='store_true', help='Whether to only evaluate on 1 second after word onset')
 parser.add_argument('--lite', action='store_true', help='Whether to use the lite eval for BTBench (which is the default)')
+
+parser.add_argument('--n_electrode_subset', type=int, default=-1, help='Number of electrodes to use in subset (-1 for all)')
+parser.add_argument('--n_data', type=int, default=-1, help='Number of examples to use (-1 for all)')
+
 args = parser.parse_args()
 
 eval_names = args.eval_name.split(',') if ',' in args.eval_name else [args.eval_name]
@@ -49,6 +53,14 @@ seed = args.seed
 nperseg = args.nperseg
 only_1second = bool(args.only_1second)
 lite = bool(args.lite)
+
+n_electrode_subset = args.n_electrode_subset
+n_data = args.n_data
+
+electrode_subset_suffix = f"_ne{n_electrode_subset}" if n_electrode_subset != -1 else ""
+data_subset_suffix = f"_nd{n_data}" if n_data != -1 else ""
+seed_suffix = f"_seed{seed}" if n_electrode_subset != -1 or n_data != -1 else ""
+total_suffix = f"{electrode_subset_suffix}{data_subset_suffix}{seed_suffix}"
 
 # Set random seeds for reproducibility
 np.random.seed(seed)
@@ -186,12 +198,15 @@ def preprocess_data(data):
 # use cache=True to load this trial's neural data into RAM, if you have enough memory!
 # It will make the loading process faster.
 subject = BrainTreebankSubject(subject_id, allow_corrupted=False, cache=True, dtype=torch.float32)
-all_electrode_labels = subject.electrode_labels
+all_electrode_labels = subject.electrode_labels if not lite else btbench_config.BTBENCH_LITE_ELECTRODES[subject.subject_identifier]
+
+electrode_subset = np.random.choice(all_electrode_labels, size=n_electrode_subset, replace=False) if n_electrode_subset != -1 else all_electrode_labels
+all_electrode_labels = list(electrode_subset)
 
 for eval_name in eval_names:
     file_save_dir = f"{save_dir}/linear_{preprocess if preprocess != 'none' else 'voltage'}{'_nperseg' + str(nperseg) if nperseg != 256 else ''}"
     os.makedirs(file_save_dir, exist_ok=True) # Create save directory if it doesn't exist
-    file_save_path = f"{file_save_dir}/population_{subject.subject_identifier}_{trial_id}_{eval_name}.json"
+    file_save_path = f"{file_save_dir}/population_{subject.subject_identifier}_{trial_id}{total_suffix}_{eval_name}.json"
     if os.path.exists(file_save_path):
         log(f"Skipping {file_save_path} because it already exists", priority=0)
         continue
@@ -239,12 +254,25 @@ for eval_name in eval_names:
             train_dataset = train_datasets[fold_idx]
             test_dataset = test_datasets[fold_idx]
 
+            # Create a subset of the training data if n_data is specified
+            n_samples = len(train_dataset)
+            if n_data > 0:
+                # Calculate the number of samples to keep
+                n_samples_to_keep = min(n_data, n_samples)
+                if verbose:
+                    log(f"Using {n_samples_to_keep}/{n_samples} training samples", 
+                        priority=1, indent=1)
+                # Randomly select indices without replacement
+                indices = np.random.choice(n_samples, size=n_samples_to_keep, replace=False)
+            else:
+                indices = np.arange(n_samples)
+
             log(f"Fold {fold_idx+1}, Bin {bin_start}-{bin_end}")
             log("Preparing and preprocessing data...", priority=2, indent=1)
 
             # Convert PyTorch dataset to numpy arrays for scikit-learn
-            X_train = np.array([preprocess_data(item[0][:, data_idx_from:data_idx_to].float().numpy()) for item in train_dataset])
-            y_train = np.array([item[1] for item in train_dataset])
+            X_train = np.array([preprocess_data(item[0][:, data_idx_from:data_idx_to].float().numpy()) for item_i, item in enumerate(train_dataset) if item_i in indices])
+            y_train = np.array([item[1] for item_i, item in enumerate(train_dataset) if item_i in indices])
             X_test = np.array([preprocess_data(item[0][:, data_idx_from:data_idx_to].float().numpy()) for item in test_dataset])
             y_test = np.array([item[1] for item in test_dataset])
             gc.collect()  # Collect after creating large arrays
@@ -324,6 +352,7 @@ for eval_name in eval_names:
             results_population["one_second_after_onset"] = bin_results # one second after onset results
         else:
             results_population["time_bins"].append(bin_results) # time bin results
+
 
     results = {
         "model_name": "Logistic Regression",

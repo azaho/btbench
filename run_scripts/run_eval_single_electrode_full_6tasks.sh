@@ -5,7 +5,7 @@
 #SBATCH --mem=4G
 #SBATCH --exclude=dgx001,dgx002
 #SBATCH -t 48:00:00         # total run time limit (HH:MM:SS) (increased to 24 hours)
-#SBATCH --array=1-988  # 285 if doing mini btbench
+#SBATCH --array=1-312  # 285 if doing mini btbench
 #SBATCH --output logs/%A_%a.out # STDOUT
 #SBATCH --error logs/%A_%a.err # STDERR
 #SBATCH -p use-everything
@@ -17,23 +17,23 @@ declare -a subjects=(1 1 1 2 2 2 2 2 2 2 3 3 3 4 4 4 5 6 6 6 7 7 8 9 10 10)
 declare -a trials=(0 1 2 0 1 2 3 4 5 6 0 1 2 0 1 2 0 0 1 4 0 1 0 0 0 1)
 
 declare -a eval_names=(
-    "frame_brightness"
-    "global_flow"
-    "local_flow"
+    #"frame_brightness"
+    #"global_flow"
+    #"local_flow"
     "global_flow_angle"
     "local_flow_angle" 
     "face_num"
-    "volume"
-    "pitch"
-    "delta_volume"
-    "delta_pitch"
-    "speech"
-    "onset"
-    "gpt2_surprisal"
-    "word_length"
-    "word_gap"
+    #"volume"
+    #"pitch"
+    #"delta_volume"
+    #"delta_pitch"
+    #"speech"
+    #"onset"
+    #"gpt2_surprisal"
+    #"word_length"
+    #"word_gap"
     "word_index"
-    "word_head_pos"
+    #"word_head_pos"
     "word_part_speech"
     "speaker"
 )
@@ -54,7 +54,7 @@ SUBJECT=${subjects[$PAIR_IDX]}
 TRIAL=${trials[$PAIR_IDX]}
 SPLITS_TYPE=${splits_type[$SPLITS_TYPE_IDX]}
 
-SAVE_DIR="eval_results_full_${SPLITS_TYPE}"
+SAVE_DIR="eval_results_full_${SPLITS_TYPE}_6tasks"
 
 echo "Using python: $(which python)"
 echo "Using python version: $(python --version)"

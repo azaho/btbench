@@ -52,8 +52,8 @@ nperseg = args.nperseg
 preprocess = args.preprocess
 
 
-bins_start_before_word_onset_seconds = 0.5 if not only_1second else 0
-bins_end_after_word_onset_seconds = 1.5 if not only_1second else 1
+bins_start_before_word_onset_seconds = 0.5# if not only_1second else 0
+bins_end_after_word_onset_seconds = 1.5# if not only_1second else 1
 bin_size_seconds = 0.25
 bin_step_size_seconds = 0.125
 
@@ -289,7 +289,7 @@ for eval_name in eval_names:
                 if verbose: 
                     log(f"Electrode {electrode_label} ({electrode_idx+1}/{len(all_electrode_labels)}), Fold {fold_idx+1}, Bin {bin_start}-{bin_end}: Train accuracy: {train_accuracy:.3f}, Test accuracy: {test_accuracy:.3f}, Train ROC AUC: {train_roc:.3f}, Test ROC AUC: {test_roc:.3f}", priority=0)
 
-            if bin_start == -bins_start_before_word_onset_seconds and bin_end == bins_end_after_word_onset_seconds:
+            if bin_start == -bins_start_before_word_onset_seconds and bin_end == bins_end_after_word_onset_seconds and not only_1second:
                 results_electrode[electrode_label]["whole_window"] = bin_results # whole window results
             elif bin_start == 0 and bin_end == 1:
                 results_electrode[electrode_label]["one_second_after_onset"] = bin_results # one second after onset results

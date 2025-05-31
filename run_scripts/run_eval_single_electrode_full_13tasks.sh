@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=e_se_full          # Name of the job
+#SBATCH --job-name=e_se_13tasks          # Name of the job
 #SBATCH --ntasks=1             # 8 tasks total
 #SBATCH --cpus-per-task=2    # Request 8 CPU cores per GPU
 #SBATCH --mem=4G
 #SBATCH --exclude=dgx001,dgx002
 #SBATCH -t 48:00:00         # total run time limit (HH:MM:SS) (increased to 24 hours)
-#SBATCH --array=1-988  # 285 if doing mini btbench
+#SBATCH --array=1-676  # 285 if doing mini btbench
 #SBATCH --output logs/%A_%a.out # STDOUT
 #SBATCH --error logs/%A_%a.err # STDERR
 #SBATCH -p use-everything
@@ -20,9 +20,9 @@ declare -a eval_names=(
     "frame_brightness"
     "global_flow"
     "local_flow"
-    "global_flow_angle"
-    "local_flow_angle" 
-    "face_num"
+    #"global_flow_angle"
+    #"local_flow_angle" 
+    #"face_num"
     "volume"
     "pitch"
     "delta_volume"
@@ -32,10 +32,10 @@ declare -a eval_names=(
     "gpt2_surprisal"
     "word_length"
     "word_gap"
-    "word_index"
+    #"word_index"
     "word_head_pos"
-    "word_part_speech"
-    "speaker"
+    #"word_part_speech"
+    #"speaker"
 )
 declare -a splits_type=(
     "SS_SM"
